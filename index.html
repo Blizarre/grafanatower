@@ -60,6 +60,11 @@
   }
   .icon-btn:hover{background:#1b1e22; color:var(--text)}
   .icon-btn svg{width:14px; height:14px; display:block}
+  #soundBtn .sound-mute{display:none}
+  #soundBtn.muted{color:#5f656b}
+  #soundBtn.muted:hover{color:var(--text)}
+  #soundBtn.muted .sound-wave{display:none}
+  #soundBtn.muted .sound-mute{display:block}
   .range-btn{
     height:28px; padding:0 9px; display:inline-flex; align-items:center; gap:7px;
     border:1px solid var(--border); border-radius:3px; background:#171a1e;
@@ -320,6 +325,13 @@
     </button>
     <button class="icon-btn" title="Refresh (fake)" aria-label="Refresh">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M13.2 2.6v3.4H9.8"/></svg>
+    </button>
+    <button class="icon-btn" id="soundBtn" title="Mute laser sound" aria-label="Mute laser sound" aria-pressed="true">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7.4 3.1 4.8 5.4H2.8v5.2h2l2.6 2.3z"/>
+        <path class="sound-wave" d="M9.7 5.6a3.5 3.5 0 0 1 0 4.8M11.5 4.2a5.7 5.7 0 0 1 0 7.6"/>
+        <path class="sound-mute" d="m10.2 6.3 3.1 3.4M13.3 6.3l-3.1 3.4"/>
+      </svg>
     </button>
     <span class="live-chip"><i></i>Live</span>
     <div class="avatar">OP</div>
@@ -1030,6 +1042,7 @@
         const mx = t.x + Math.cos(ang) * 13;
         const my = t.y + Math.sin(ang) * 13;
         state.beams.push({ x1: mx, y1: my, x2: target.x, y2: target.y, life: 0.09, maxLife: 0.09 });
+        playLaser(t.x);
         for (let p = 0; p < 3; p++) {
           state.particles.push({
             x: target.x, y: target.y,
@@ -1617,6 +1630,205 @@
     clearTimeout(hintTimer);
   }
 
+  /* ---------------- audio ---------------- */
+
+  const audioState = { ctx: null, master: null, drive: null, comp: null, noise: null, on: true, last: 0 };
+  const AUDIO_MASTER = 0.42;
+
+  function makeDriveCurve(amount) {
+    const n = 1024;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.tanh(x * amount);
+    }
+    return curve;
+  }
+
+  function ensureAudio() {
+    if (!audioState.on) return audioState.ctx;
+    if (!audioState.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try {
+        const ac = new AC();
+        const master = ac.createGain();
+        master.gain.value = AUDIO_MASTER;
+
+        const drive = ac.createWaveShaper();
+        drive.curve = makeDriveCurve(2.6);
+        drive.oversample = '2x';
+
+        const comp = ac.createDynamicsCompressor();
+        comp.threshold.value = -18;
+        comp.knee.value = 10;
+        comp.ratio.value = 5;
+        comp.attack.value = 0.003;
+        comp.release.value = 0.16;
+
+        master.connect(drive);
+        drive.connect(comp);
+        comp.connect(ac.destination);
+
+        audioState.ctx = ac;
+        audioState.master = master;
+        audioState.drive = drive;
+        audioState.comp = comp;
+      } catch (e) {
+        audioState.ctx = null;
+        audioState.master = null;
+        audioState.drive = null;
+        audioState.comp = null;
+        return null;
+      }
+    }
+    if (audioState.ctx.state === 'suspended') {
+      const p = audioState.ctx.resume();
+      if (p && p.catch) p.catch(function () {});
+    }
+    return audioState.ctx;
+  }
+
+  function ensureNoise(ac) {
+    if (audioState.noise) return audioState.noise;
+    const len = Math.floor(ac.sampleRate * 0.3);
+    const buffer = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    audioState.noise = buffer;
+    return buffer;
+  }
+
+  function playLaser(x) {
+    if (!audioState.on) return;
+    const ac = audioState.ctx;
+    if (!ac || ac.state !== 'running') return;
+    const now = ac.currentTime;
+    if (now - audioState.last < 0.055) return;
+    audioState.last = now;
+
+    const nodes = [];
+    const out = ac.createGain();
+    out.gain.value = 1;
+    nodes.push(out);
+
+    if (ac.createStereoPanner) {
+      const pan = ac.createStereoPanner();
+      pan.pan.value = clamp((x / W) * 2 - 1, -1, 1) * 0.7;
+      out.connect(pan);
+      pan.connect(audioState.master);
+      nodes.push(pan);
+    } else {
+      out.connect(audioState.master);
+    }
+
+    /* bright zap */
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 1.8;
+    filter.frequency.setValueAtTime(4400, now);
+    filter.frequency.exponentialRampToValueAtTime(900, now + 0.15);
+    filter.connect(out);
+    nodes.push(filter);
+
+    const osc = ac.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(1650 + rand(-220, 300), now);
+    osc.frequency.exponentialRampToValueAtTime(250 + rand(-30, 80), now + 0.14);
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.13 + rand(0, 0.06), now + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    osc.connect(gain);
+    gain.connect(filter);
+    nodes.push(osc, gain);
+
+    /* low body thump */
+    const body = ac.createOscillator();
+    body.type = 'sine';
+    body.frequency.setValueAtTime(190 + rand(-20, 30), now);
+    body.frequency.exponentialRampToValueAtTime(50, now + 0.13);
+    const bodyGain = ac.createGain();
+    bodyGain.gain.setValueAtTime(0.0001, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.24, now + 0.006);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    body.connect(bodyGain);
+    bodyGain.connect(out);
+    nodes.push(body, bodyGain);
+
+    /* noise crack transient */
+    const noise = ac.createBufferSource();
+    noise.buffer = ensureNoise(ac);
+    const noiseFilter = ac.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.setValueAtTime(2600 + rand(-500, 500), now);
+    noiseFilter.Q.value = 0.8;
+    const noiseGain = ac.createGain();
+    noiseGain.gain.setValueAtTime(0.0001, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.26, now + 0.003);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(out);
+    nodes.push(noise, noiseFilter, noiseGain);
+
+    /* high sparkle */
+    const ping = ac.createOscillator();
+    ping.type = 'triangle';
+    ping.frequency.setValueAtTime(2600 + rand(-300, 300), now);
+    ping.frequency.exponentialRampToValueAtTime(900, now + 0.07);
+    const pingGain = ac.createGain();
+    pingGain.gain.setValueAtTime(0.0001, now);
+    pingGain.gain.exponentialRampToValueAtTime(0.05, now + 0.003);
+    pingGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+    ping.connect(pingGain);
+    pingGain.connect(out);
+    nodes.push(ping, pingGain);
+
+    osc.start(now);
+    osc.stop(now + 0.23);
+    body.start(now);
+    body.stop(now + 0.17);
+    noise.start(now);
+    noise.stop(now + 0.1);
+    ping.start(now);
+    ping.stop(now + 0.1);
+
+    let cleaned = false;
+    const cleanup = function () {
+      if (cleaned) return;
+      cleaned = true;
+      for (let i = 0; i < nodes.length; i++) {
+        try { nodes[i].disconnect(); } catch (e) {}
+      }
+    };
+    osc.onended = cleanup;
+    setTimeout(cleanup, 450);
+  }
+
+  function toggleSound() {
+    audioState.on = !audioState.on;
+    const btn = document.getElementById('soundBtn');
+    if (btn) {
+      btn.classList.toggle('muted', !audioState.on);
+      btn.title = audioState.on ? 'Mute laser sound' : 'Enable laser sound';
+      btn.setAttribute('aria-pressed', audioState.on ? 'true' : 'false');
+    }
+
+    const ac = audioState.on ? ensureAudio() : audioState.ctx;
+    if (ac && audioState.master) {
+      audioState.master.gain.setTargetAtTime(audioState.on ? AUDIO_MASTER : 0.0001, ac.currentTime, 0.02);
+    }
+    if (audioState.on && ac) {
+      const confirm = function () { playLaser(W / 2); };
+      if (ac.state === 'running') confirm();
+      else {
+        const p = ac.resume();
+        if (p && p.then) p.then(confirm).catch(function () {});
+      }
+    }
+  }
+
   /* ---------------- input ---------------- */
 
   window.addEventListener('mousemove', e => {
@@ -1639,6 +1851,8 @@
   });
 
   document.getElementById('restartBtn').addEventListener('click', resetGame);
+  document.getElementById('soundBtn').addEventListener('click', toggleSound);
+  window.addEventListener('pointerdown', ensureAudio, { passive: true });
 
   window.addEventListener('resize', queueResize);
   window.addEventListener('load', () => {
