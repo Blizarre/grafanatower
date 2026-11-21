@@ -1,0 +1,1724 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grafana — Perimeter Defense</title>
+<style>
+  :root{
+    --bg:#111217;
+    --panel:#181b1f;
+    --border:#2c3235;
+    --text:#ccccdc;
+    --text-dim:#9aa0a6;
+    --text-faint:#787d82;
+    --green:#73bf69;
+    --yellow:#fade2a;
+    --red:#f2495c;
+    --orange:#ff9830;
+    --blue:#5794f2;
+    --purple:#b877d9;
+    --cyan:#56d9ff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    overflow:hidden;
+    color:var(--text);
+    background-color:var(--bg);
+    background-image:radial-gradient(circle, rgba(255,255,255,.045) 1px, transparent 1.3px);
+    background-size:24px 24px;
+    font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    user-select:none;
+  }
+
+  #game{position:fixed; inset:0; z-index:0; display:block; pointer-events:none}
+  #fx{position:fixed; inset:0; z-index:3; display:block; cursor:default}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:relative; z-index:4;
+    height:52px;
+    display:flex; align-items:center; gap:18px;
+    padding:0 14px 0 16px;
+    background:#0e1012;
+    border-bottom:1px solid #262a2e;
+  }
+  .brand{display:flex; align-items:center; gap:8px}
+  .brand-logo{width:24px; height:24px; display:block}
+  .brand-name{font-size:15px; font-weight:600; letter-spacing:.2px; color:#e6e7ec}
+  .crumbs{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim); min-width:0; white-space:nowrap}
+  .crumbs .sep{color:#4a4f55}
+  .crumbs .current{color:var(--text)}
+  .topbar-right{margin-left:auto; display:flex; align-items:center; gap:8px}
+  .icon-btn{
+    width:28px; height:28px; padding:0; border-radius:3px;
+    border:1px solid transparent; background:transparent; color:var(--text-dim);
+    display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .icon-btn:hover{background:#1b1e22; color:var(--text)}
+  .icon-btn svg{width:14px; height:14px; display:block}
+  .range-btn{
+    height:28px; padding:0 9px; display:inline-flex; align-items:center; gap:7px;
+    border:1px solid var(--border); border-radius:3px; background:#171a1e;
+    color:var(--text); font-family:inherit; font-size:12px; cursor:pointer;
+  }
+  .range-btn:hover{background:#1d2126}
+  .range-btn svg{width:13px; height:13px; color:var(--text-dim)}
+  .live-chip{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:10px; letter-spacing:.8px; text-transform:uppercase; color:var(--green);
+    background:rgba(115,191,105,.1); border:1px solid rgba(115,191,105,.25);
+    border-radius:20px; padding:3px 8px; white-space:nowrap;
+  }
+  .live-chip i{width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); animation:blink 1.6s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  .avatar{
+    width:26px; height:26px; border-radius:50%; flex:0 0 auto;
+    background:linear-gradient(135deg,#5794f2,#b877d9);
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:700; color:#fff; letter-spacing:.4px;
+  }
+
+  /* ---------- dashboard layout ---------- */
+  .dash{
+    position:relative; z-index:2;
+    height:calc(100vh - 52px);
+    display:flex; flex-direction:column;
+    padding:14px 40px 32px; gap:14px;
+    pointer-events:none;
+  }
+  .dash-head{display:flex; align-items:center; gap:10px; padding:0 2px; flex:0 0 auto; pointer-events:auto}
+  .dash-head h1{margin:0 6px 0 0; font-size:20px; font-weight:600; letter-spacing:-.2px}
+  .tag{
+    font-size:10px; letter-spacing:.6px; text-transform:uppercase; color:var(--text-dim);
+    background:#1e2227; border:1px solid var(--border); border-radius:20px; padding:2px 8px;
+    white-space:nowrap;
+  }
+  .head-right{margin-left:auto; display:flex; align-items:center; gap:8px}
+  .save-state{font-size:11px; color:var(--text-faint); margin-right:4px; white-space:nowrap}
+  .btn{
+    height:28px; padding:0 12px; border-radius:3px; border:1px solid var(--border);
+    background:#1f2329; color:var(--text); font-family:inherit; font-size:12px; cursor:pointer;
+    white-space:nowrap;
+  }
+  .btn:hover{background:#262b31}
+  .btn.ghost{background:transparent}
+  .btn.ghost:hover{background:#1b1e22}
+  .btn.primary{background:#3d71d9; border-color:#3d71d9; color:#fff}
+  .btn.primary:hover{background:#4b80e8}
+  .btn.wide{width:100%; height:36px; font-size:13px; font-weight:500}
+
+  .grid{
+    flex:1 1 auto; min-height:0;
+    display:grid;
+    grid-template-columns:repeat(12, minmax(0,1fr));
+    grid-template-rows:104px minmax(150px, 1.12fr) minmax(132px, .88fr);
+    gap:36px 40px;
+  }
+  .span3{grid-column:span 3}
+  .span4{grid-column:span 4}
+  .span5{grid-column:span 5}
+  .span8{grid-column:span 8}
+
+  .panel{
+    pointer-events:none; cursor:default;
+    display:flex; flex-direction:column;
+    min-width:0; min-height:0;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:2px;
+    box-shadow:0 1px 2px rgba(0,0,0,.35);
+    overflow:hidden;
+  }
+  .panel-head{
+    flex:0 0 auto; height:30px;
+    display:flex; align-items:center; gap:10px;
+    padding:0 8px 0 10px;
+  }
+  .panel-title{
+    flex:0 1 auto; min-width:0;
+    font-size:12px; font-weight:500; color:var(--text);
+    letter-spacing:.1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .panel-actions{margin-left:auto; display:flex; align-items:center; gap:8px; color:#5f656b; flex:0 0 auto}
+  .panel-actions svg{display:block}
+  .panel-hint{
+    font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--text-faint);
+    border:1px solid var(--border); border-radius:20px; padding:1px 6px; flex:0 0 auto;
+  }
+  .legend{display:flex; align-items:center; gap:12px; margin-left:6px; flex:0 0 auto}
+  .legend-item{display:flex; align-items:center; gap:5px; font-size:10px; color:var(--text-dim); white-space:nowrap}
+  .legend-item i{width:8px; height:3px; border-radius:2px}
+
+  /* stat panels */
+  .stat-body{
+    flex:1; min-height:0;
+    display:flex; flex-direction:column; justify-content:center; gap:4px;
+    padding:0 12px 8px;
+  }
+  .stat-value{
+    font-size:34px; font-weight:600; line-height:1; letter-spacing:-1.5px;
+    font-variant-numeric:tabular-nums;
+  }
+  .stat-sub{font-size:11px; line-height:1.25; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+  /* chart */
+  .chart-body{flex:1; min-height:0; padding:0 8px 6px 4px}
+  .chart-body svg{width:100%; height:100%; display:block; overflow:visible}
+  .chart-text{font-family:Inter, system-ui, sans-serif; font-size:9px; fill:#7c8288}
+
+  /* gauge */
+  .gauge-body{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:0 10px 10px}
+  .gauge-body svg{width:100%; height:100%; max-height:240px; display:block}
+
+  /* logs */
+  .log-body{
+    flex:1; min-height:0; overflow:hidden;
+    display:flex; flex-direction:column; justify-content:flex-end;
+    padding:0 10px 8px;
+    font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:10.5px; line-height:1.55;
+  }
+  .log-line{display:flex; gap:8px; white-space:nowrap; flex:0 0 auto}
+  .log-time{flex:0 0 auto; color:#5d6369}
+  .log-level{flex:0 0 auto; text-transform:uppercase; font-size:9px; letter-spacing:.4px; padding-top:1px}
+  .log-level.info{color:#7f8a95}
+  .log-level.ok{color:var(--green)}
+  .log-level.warn{color:var(--yellow)}
+  .log-level.error{color:var(--red)}
+  .log-msg{color:#a9aeb4; overflow:hidden; text-overflow:ellipsis}
+
+  /* kill breakdown */
+  .kill-body{flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:7px; padding:0 12px 10px}
+  .kill-row{display:grid; grid-template-columns:68px 1fr 22px; gap:8px; align-items:center; font-size:10.5px; color:var(--text-dim); flex:0 0 auto}
+  .kill-label{display:flex; align-items:center; gap:6px; white-space:nowrap}
+  .kill-label i{width:7px; height:7px; border-radius:2px; display:inline-block; flex:0 0 auto}
+  .kill-track{height:5px; border-radius:3px; background:#23272c; overflow:hidden}
+  .kill-bar{display:block; height:100%; width:0; border-radius:3px; transition:width .3s ease}
+  .kill-count{text-align:right; color:var(--text); font-variant-numeric:tabular-nums}
+
+  /* tower table */
+  .mini-table{flex:1; min-height:0; padding:0 10px 8px; display:flex; flex-direction:column; font-size:10.5px}
+  .mini-row{
+    display:grid; grid-template-columns:52px 1fr 62px; gap:6px; align-items:center;
+    height:20px; flex:0 0 20px; border-bottom:1px solid #202428; color:#b6bbc1;
+  }
+  .mini-row.head{
+    color:#6d7379; border-bottom-color:var(--border);
+    font-size:9px; text-transform:uppercase; letter-spacing:.6px;
+  }
+  .mini-row .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#9aa0a6}
+  .mini-row .status{display:flex; align-items:center; gap:5px; color:var(--green); font-size:10px}
+  .dot{width:5px; height:5px; border-radius:50%; background:var(--green); box-shadow:0 0 5px rgba(115,191,105,.8); display:inline-block; flex:0 0 auto}
+  .mini-empty{color:var(--text-faint); font-size:10.5px; padding-top:10px; white-space:normal; line-height:1.5}
+  #towerRows{overflow:hidden; display:flex; flex-direction:column}
+
+  /* hint */
+  .hint{
+    position:fixed; z-index:6; left:50%; bottom:20px;
+    display:flex; align-items:center; gap:10px;
+    padding:9px 15px;
+    background:rgba(20,23,27,.94);
+    border:1px solid var(--border); border-radius:4px;
+    box-shadow:0 8px 30px rgba(0,0,0,.5);
+    font-size:12px; color:var(--text);
+    pointer-events:none;
+    transform:translateX(-50%);
+    transition:opacity .5s ease, transform .5s ease;
+    backdrop-filter:blur(4px);
+  }
+  .hint.hidden{opacity:0; transform:translateX(-50%) translateY(8px)}
+  .hint svg{width:15px; height:15px; color:var(--green); flex:0 0 auto}
+  .hint strong{color:#fff; font-weight:600}
+  .hint-sep{width:1px; height:14px; background:var(--border); flex:0 0 auto}
+  .hint-danger{color:var(--red); font-size:11px; white-space:nowrap}
+
+  /* game over */
+  .overlay{
+    position:fixed; inset:0; z-index:50;
+    display:grid; place-items:center;
+    background:rgba(8,9,11,.72);
+    backdrop-filter:blur(3px);
+  }
+  .overlay.hidden{display:none}
+  .overlay-card{
+    width:min(430px, calc(100vw - 32px));
+    background:#181b1f;
+    border:1px solid var(--border);
+    border-top:3px solid var(--red);
+    border-radius:3px;
+    padding:24px 24px 20px;
+    box-shadow:0 30px 80px rgba(0,0,0,.65);
+  }
+  .overlay-icon{
+    width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(242,73,92,.12); color:var(--red);
+    margin-bottom:14px;
+  }
+  .overlay-card h2{margin:0 0 6px; font-size:19px; font-weight:600; letter-spacing:-.2px}
+  .overlay-card p{margin:0 0 16px; font-size:12px; line-height:1.5; color:var(--text-dim)}
+  .overlay-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px}
+  .overlay-stats > div{background:#14171b; border:1px solid var(--border); border-radius:3px; padding:10px; text-align:center}
+  .overlay-stats span{display:block; font-size:20px; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums}
+  .overlay-stats small{display:block; margin-top:2px; font-size:9px; letter-spacing:.8px; text-transform:uppercase; color:var(--text-faint)}
+  .overlay-note{margin:12px 0 0 !important; font-size:10.5px !important; color:var(--text-faint) !important; text-align:center}
+
+  @media (max-height: 780px){
+    .dash{padding:10px 32px 24px; gap:10px}
+    .dash-head h1{font-size:18px}
+    .grid{grid-template-rows:92px minmax(120px,1.12fr) minmax(104px,.88fr); gap:30px 34px}
+    .stat-value{font-size:26px}
+    .stat-body{padding-bottom:6px; gap:3px}
+    .log-body{font-size:10px}
+  }
+  @media (max-width: 1050px){
+    .crumbs, .save-state, .tag{display:none}
+    .dash{padding:10px 20px 20px}
+    .grid{gap:30px 28px}
+    .legend{display:none}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+<canvas id="fx"></canvas>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-logo" viewBox="0 0 24 24" aria-hidden="true">
+      <defs>
+        <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#FBCA0A"/>
+          <stop offset=".55" stop-color="#F68B1F"/>
+          <stop offset="1" stop-color="#F05A28"/>
+        </linearGradient>
+      </defs>
+      <path fill="url(#brandGrad)" d="M12 1.6c2 3.5 5.7 5.3 6.9 9.2 1.4 4.7-1.6 9.5-6.2 10.6-3.4.8-6.9-.9-8.4-4C2 12.7 5.6 9.4 12 1.6z"/>
+      <path fill="rgba(17,18,23,.55)" d="M12 6.6c1.1 2.1 3.2 3.2 3.7 5.6.6 2.6-1 5.2-3.5 5.8-2 .5-4-.6-4.8-2.4-1.2-2.7 1-4.9 4.6-9z"/>
+    </svg>
+    <span class="brand-name">Grafana</span>
+  </div>
+  <nav class="crumbs">
+    <span>Dashboards</span><span class="sep">/</span><span>Operations</span><span class="sep">/</span><span class="current">Perimeter Defense</span>
+  </nav>
+  <div class="topbar-right">
+    <button class="icon-btn" title="Search (fake)" aria-label="Search">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="7" cy="7" r="4.2"/><path d="m10.2 10.2 3 3"/></svg>
+    </button>
+    <button class="icon-btn" title="Help (fake)" aria-label="Help">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.5 1.6c-.5.3-.8.6-.8 1.2"/><circle cx="8" cy="11.5" r=".7" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <button class="range-btn" title="Time range (fake)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 4.6V8l2.4 1.6"/></svg>
+      Last 6 hours
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="m5 6.5 3 3 3-3"/></svg>
+    </button>
+    <button class="icon-btn" title="Refresh (fake)" aria-label="Refresh">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M13.2 2.6v3.4H9.8"/></svg>
+    </button>
+    <span class="live-chip"><i></i>Live</span>
+    <div class="avatar">OP</div>
+  </div>
+</header>
+
+<main class="dash">
+  <div class="dash-head">
+    <h1>Perimeter Defense</h1>
+    <span class="tag">prod</span>
+    <span class="tag">tower-defense</span>
+    <div class="head-right">
+      <span class="save-state">Saved 3m ago</span>
+      <button class="btn ghost" type="button">Share</button>
+      <button class="btn primary" type="button">Save</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="panel span3">
+      <div class="panel-head">
+        <span class="panel-title">Defense score</span>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" id="scoreValue" style="color:var(--yellow)">0</div>
+        <div class="stat-sub" id="scoreSub">0 alive · 0 neutralized</div>
+      </div>
+    </section>
+
+    <section class="panel span3">
+      <div class="panel-head">
+        <span class="panel-title">Hostiles remaining</span>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" id="enemiesValue" style="color:var(--red)">0</div>
+        <div class="stat-sub" id="enemiesSub">wave 1 · inbound</div>
+      </div>
+    </section>
+
+    <section class="panel span3">
+      <div class="panel-head">
+        <span class="panel-title">Wave</span>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" id="waveValue" style="color:var(--blue)">1</div>
+        <div class="stat-sub" id="waveSub">inbound</div>
+      </div>
+    </section>
+
+    <section class="panel span3">
+      <div class="panel-head">
+        <span class="panel-title">Turrets online</span>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="stat-body">
+        <div class="stat-value" id="towerValue" style="color:var(--green)">0</div>
+        <div class="stat-sub" id="towerSub">left-click to deploy</div>
+      </div>
+    </section>
+
+    <section class="panel span8">
+      <div class="panel-head">
+        <span class="panel-title">Hostile pressure vs. interception</span>
+        <div class="legend">
+          <span class="legend-item"><i style="background:#f2495c"></i>Inbound</span>
+          <span class="legend-item"><i style="background:#73bf69"></i>Intercepted</span>
+        </div>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="chart-body"><svg id="tsChart" viewBox="0 0 800 220"></svg></div>
+    </section>
+
+    <section class="panel span4">
+      <div class="panel-head">
+        <span class="panel-title">Reactor capacitor</span>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="gauge-body"><svg id="gaugeChart" viewBox="0 0 200 140"></svg></div>
+    </section>
+
+    <section class="panel span5">
+      <div class="panel-head">
+        <span class="panel-title">Event log</span>
+        <span class="panel-hint">live</span>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="log-body" id="logBody"></div>
+    </section>
+
+    <section class="panel span3">
+      <div class="panel-head">
+        <span class="panel-title">Interceptions by class</span>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="kill-body" id="killRows"></div>
+    </section>
+
+    <section class="panel span4">
+      <div class="panel-head">
+        <span class="panel-title">Tower network</span>
+        <div class="panel-actions">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+        </div>
+      </div>
+      <div class="mini-table">
+        <div class="mini-row head"><span>ID</span><span>Sector</span><span>Status</span></div>
+        <div id="towerRows"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="hint" id="hint">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><rect x="3.5" y="1.5" width="9" height="13" rx="4.5"/><path d="M8 4v3"/></svg>
+  <span><strong>Left-click a panel</strong> (near an edge) to deploy laser towers</span>
+  <span class="hint-sep"></span>
+  <span class="hint-danger">Stop hostiles at the red perimeter</span>
+</div>
+
+<div class="overlay hidden" id="overlay">
+  <div class="overlay-card">
+    <div class="overlay-icon">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 22 20H2z"/><path d="M12 9v5" stroke-linecap="round"/><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none"/></svg>
+    </div>
+    <h2>Perimeter breached</h2>
+    <p>Hostiles reached the right edge of the grid. The dashboard is still up — the data is not.</p>
+    <div class="overlay-stats">
+      <div><span id="overWave">1</span><small>wave</small></div>
+      <div><span id="overScore">0</span><small>score</small></div>
+      <div><span id="overKills">0</span><small>kills</small></div>
+    </div>
+    <button class="btn primary wide" id="restartBtn" type="button">Redeploy defenses</button>
+    <p class="overlay-note">Tip: place turrets near a panel edge so their range reaches the corridors.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const fxCanvas = document.getElementById('fx');
+  const fctx = fxCanvas.getContext('2d');
+  const TOPBAR = 52;
+  const TAU = Math.PI * 2;
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[(Math.random() * arr.length) | 0];
+  const fmt = n => Math.round(n).toLocaleString('en-US');
+
+  function withAlpha(hex, a) {
+    const h = hex.replace('#', '');
+    const s = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    const n = parseInt(s, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  const el = {
+    score: document.getElementById('scoreValue'),
+    scoreSub: document.getElementById('scoreSub'),
+    enemies: document.getElementById('enemiesValue'),
+    enemiesSub: document.getElementById('enemiesSub'),
+    wave: document.getElementById('waveValue'),
+    waveSub: document.getElementById('waveSub'),
+    towers: document.getElementById('towerValue'),
+    towersSub: document.getElementById('towerSub'),
+    towerRows: document.getElementById('towerRows'),
+    killRows: document.getElementById('killRows'),
+    log: document.getElementById('logBody'),
+    overlay: document.getElementById('overlay'),
+    ts: document.getElementById('tsChart'),
+    gauge: document.getElementById('gaugeChart'),
+    hint: document.getElementById('hint'),
+  };
+
+  let W = window.innerWidth;
+  let H = window.innerHeight;
+
+  const TYPES = {
+    scout:  { key: 'scout',  label: 'Scout',  color: '#f2495c', r: 6.5, speed: 60, hp: 26,  score: 10 },
+    raider: { key: 'raider', label: 'Raider', color: '#ff9830', r: 8.5, speed: 44, hp: 62,  score: 20 },
+    brute:  { key: 'brute',  label: 'Brute',  color: '#b877d9', r: 11,  speed: 29, hp: 160, score: 45 },
+    runner: { key: 'runner', label: 'Runner', color: '#fade2a', r: 6,   speed: 96, hp: 34,  score: 25 },
+  };
+
+  const TOWER = { range: 118, fireRate: 0.55, damage: 18, radius: 11 };
+
+  const state = {
+    running: true,
+    gameOver: false,
+    elapsed: 0,
+    wave: 1,
+    waveTotal: 0,
+    spawnQueue: [],
+    spawnTimer: 0,
+    spawnInterval: 1,
+    intermission: 0,
+    score: 0,
+    kills: 0,
+    killsByType: { scout: 0, raider: 0, brute: 0, runner: 0 },
+    nextTowerId: 1,
+    enemies: [],
+    towers: [],
+    beams: [],
+    particles: [],
+    floats: [],
+    effects: [],
+  };
+
+  const mouse = { x: 0, y: 0, on: false };
+  const killEls = {};
+  let solidRects = [];
+  let panelRects = [];
+  let field = null;
+  let hintTimer = 0;
+
+  /* ---------------- field / pathfinding ---------------- */
+
+  function readPanelRects() {
+    const out = [];
+    document.querySelectorAll('.panel').forEach(node => {
+      const r = node.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        out.push({ x: r.left, y: r.top, w: r.width, h: r.height });
+      }
+    });
+    return out;
+  }
+
+  function panelAt(x, y) {
+    for (let i = 0; i < panelRects.length; i++) {
+      const r = panelRects[i];
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r;
+    }
+    return null;
+  }
+
+  function buildField() {
+    panelRects = readPanelRects();
+    solidRects = panelRects.slice();
+    const tb = document.querySelector('.topbar').getBoundingClientRect();
+    if (tb.width > 0 && tb.height > 0) {
+      solidRects.push({ x: tb.left, y: tb.top, w: tb.width, h: tb.height });
+    }
+    const cs = 10;
+    const cols = Math.max(1, Math.ceil(W / cs));
+    const rows = Math.max(1, Math.ceil(H / cs));
+    const n = cols * rows;
+    const blocked = new Uint8Array(n);
+    const pad = 2;
+
+    for (let r = 0; r < rows; r++) {
+      const y = r * cs;
+      for (let c = 0; c < cols; c++) {
+        const x = c * cs;
+        let b = 0;
+        for (let k = 0; k < solidRects.length; k++) {
+          const rc = solidRects[k];
+          if (x < rc.x + rc.w + pad && x + cs > rc.x - pad &&
+              y < rc.y + rc.h + pad && y + cs > rc.y - pad) {
+            b = 1;
+            break;
+          }
+        }
+        blocked[r * cols + c] = b;
+      }
+    }
+
+    const dist = new Int32Array(n).fill(-1);
+    const queue = new Int32Array(n);
+    let qh = 0, qt = 0;
+
+    const startCol = Math.max(0, cols - 4);
+    for (let r = 0; r < rows; r++) {
+      for (let c = startCol; c < cols; c++) {
+        const i = r * cols + c;
+        if (!blocked[i] && dist[i] === -1) {
+          dist[i] = 0;
+          queue[qt++] = i;
+        }
+      }
+    }
+
+    const nb = [
+      [1, 0, true], [-1, 0, true], [0, 1, true], [0, -1, true],
+      [1, 1, false], [1, -1, false], [-1, 1, false], [-1, -1, false],
+    ];
+
+    while (qh < qt) {
+      const i = queue[qh++];
+      const r = (i / cols) | 0;
+      const c = i - r * cols;
+      const d = dist[i];
+      for (let k = 0; k < 8; k++) {
+        const dc = nb[k][0], dr = nb[k][1], ortho = nb[k][2];
+        const nc = c + dc, nr = r + dr;
+        if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+        const ni = nr * cols + nc;
+        if (blocked[ni] || dist[ni] !== -1) continue;
+        if (!ortho && (blocked[r * cols + nc] || blocked[nr * cols + c])) continue;
+        dist[ni] = d + 1;
+        queue[qt++] = ni;
+      }
+    }
+
+    let fx = new Float32Array(n);
+    let fy = new Float32Array(n);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const i = r * cols + c;
+        if (blocked[i]) continue;
+        let bestD = dist[i];
+        let bc = 0, br = 0, found = false;
+        if (bestD >= 0) {
+          for (let k = 0; k < 8; k++) {
+            const dc = nb[k][0], dr = nb[k][1], ortho = nb[k][2];
+            const nc = c + dc, nr = r + dr;
+            if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+            const ni = nr * cols + nc;
+            if (blocked[ni] || dist[ni] < 0) continue;
+            if (!ortho && (blocked[r * cols + nc] || blocked[nr * cols + c])) continue;
+            if (dist[ni] < bestD) {
+              bestD = dist[ni];
+              bc = dc;
+              br = dr;
+              found = true;
+            }
+          }
+        }
+        if (found) {
+          const len = Math.hypot(bc, br) || 1;
+          fx[i] = bc / len;
+          fy[i] = br / len;
+        } else {
+          fx[i] = 1;
+          fy[i] = 0;
+        }
+      }
+    }
+
+    for (let pass = 0; pass < 2; pass++) {
+      const nfx = new Float32Array(n);
+      const nfy = new Float32Array(n);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const i = r * cols + c;
+          if (blocked[i]) continue;
+          let sx = fx[i] * 2, sy = fy[i] * 2, wt = 2;
+          for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+              if (!dc && !dr) continue;
+              const nc = c + dc, nr = r + dr;
+              if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+              const ni = nr * cols + nc;
+              if (blocked[ni]) continue;
+              sx += fx[ni];
+              sy += fy[ni];
+              wt += 1;
+            }
+          }
+          nfx[i] = sx / wt;
+          nfy[i] = sy / wt;
+        }
+      }
+      fx = nfx;
+      fy = nfy;
+    }
+
+    const spawnCells = [];
+    const spawnCols = Math.min(cols, Math.ceil(32 / cs));
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < spawnCols; c++) {
+        const i = r * cols + c;
+        if (blocked[i] || dist[i] < 0) continue;
+        const y = r * cs + cs / 2;
+        if (y > TOPBAR + 10 && y < H - 10) spawnCells.push({ x: c * cs + cs / 2, y: y });
+      }
+    }
+
+    field = { cs: cs, cols: cols, rows: rows, blocked: blocked, dist: dist, fx: fx, fy: fy, spawnCells: spawnCells };
+  }
+
+  function sampleFlow(x, y) {
+    if (!field) return { x: 1, y: 0 };
+    const cs = field.cs, cols = field.cols, rows = field.rows;
+    const blocked = field.blocked, dist = field.dist, fx = field.fx, fy = field.fy;
+    const c = clamp(Math.floor(x / cs), 0, cols - 1);
+    const r = clamp(Math.floor(y / cs), 0, rows - 1);
+    let sx = 0, sy = 0, wt = 0;
+    for (let dr = -2; dr <= 2; dr++) {
+      const rr = r + dr;
+      if (rr < 0 || rr >= rows) continue;
+      for (let dc = -2; dc <= 2; dc++) {
+        const cc = c + dc;
+        if (cc < 0 || cc >= cols) continue;
+        const i = rr * cols + cc;
+        if (blocked[i] || dist[i] < 0) continue;
+        const w = 1 / (1 + dc * dc + dr * dr);
+        sx += fx[i] * w;
+        sy += fy[i] * w;
+        wt += w;
+      }
+    }
+    if (wt < 1e-6) return { x: 1, y: 0 };
+    const len = Math.hypot(sx, sy) || 1;
+    return { x: sx / len, y: sy / len };
+  }
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    fxCanvas.width = Math.round(W * dpr);
+    fxCanvas.height = Math.round(H * dpr);
+    fxCanvas.style.width = W + 'px';
+    fxCanvas.style.height = H + 'px';
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    buildField();
+  }
+
+  let resizePending = false;
+  function queueResize() {
+    if (resizePending) return;
+    resizePending = true;
+    requestAnimationFrame(() => {
+      resizePending = false;
+      resize();
+    });
+  }
+
+  /* ---------------- game logic ---------------- */
+
+  function canPlace(x, y) {
+    if (!state.running) return false;
+    const panel = panelAt(x, y);
+    if (!panel) return false;
+    const m = TOWER.radius + 4;
+    if (x < panel.x + m || x > panel.x + panel.w - m ||
+        y < panel.y + m || y > panel.y + panel.h - m) return false;
+    for (let i = 0; i < state.towers.length; i++) {
+      const t = state.towers[i];
+      const dx = t.x - x, dy = t.y - y;
+      if (dx * dx + dy * dy < 26 * 26) return false;
+    }
+    return true;
+  }
+
+  function placeTower(x, y) {
+    const t = {
+      id: state.nextTowerId++,
+      x: x,
+      y: y,
+      angle: -Math.PI / 2,
+      cd: rand(0, 0.15),
+      range: TOWER.range,
+      fireRate: TOWER.fireRate,
+      damage: TOWER.damage,
+    };
+    state.towers.push(t);
+    state.effects.push({ kind: 'ring', x: x, y: y, r: 8, max: 46, life: 0.45, maxLife: 0.45, color: '#73bf69' });
+    logEvent('ok', 'Turret LZ-' + String(t.id).padStart(2, '0') + ' deployed — sector ' + sector(x, y));
+    rebuildTowerTable();
+    syncUI();
+    hideHint();
+  }
+
+  function pickType(wave) {
+    const r = Math.random();
+    if (wave >= 5 && r < 0.16) return TYPES.runner;
+    if (wave >= 3 && r < 0.38) return TYPES.brute;
+    if (wave >= 2 && r < 0.64) return TYPES.raider;
+    return TYPES.scout;
+  }
+
+  function makeWaveSpecs(wave) {
+    const count = Math.min(30, 5 + wave * 2);
+    const specs = [];
+    for (let i = 0; i < count; i++) specs.push(pickType(wave));
+    return specs;
+  }
+
+  function startWave() {
+    state.spawnQueue = makeWaveSpecs(state.wave);
+    state.waveTotal = state.spawnQueue.length;
+    state.spawnTimer = 0.6;
+    state.spawnInterval = Math.max(0.34, 1.05 - state.wave * 0.05);
+    state.intermission = 0;
+    logEvent('info', 'Wave ' + state.wave + ' inbound — ' + state.waveTotal + ' hostiles detected');
+    syncUI();
+  }
+
+  function spawnEnemy(type) {
+    let sx = 20;
+    let sy = H / 2;
+    if (field && field.spawnCells.length) {
+      const cell = pick(field.spawnCells);
+      sx = cell.x;
+      sy = cell.y;
+    }
+    const hpScale = 1 + (state.wave - 1) * 0.16;
+    const spScale = 1 + Math.min(0.45, (state.wave - 1) * 0.025);
+    const hp = type.hp * hpScale;
+    const e = {
+      type: type,
+      x: sx,
+      y: clamp(sy + rand(-6, 6), TOPBAR + type.r + 2, H - type.r - 2),
+      vx: rand(10, 22),
+      vy: 0,
+      r: type.r,
+      hp: hp,
+      maxHp: hp,
+      speed: type.speed * spScale,
+      score: Math.round(type.score * (1 + (state.wave - 1) * 0.08)),
+      flash: 0,
+      spin: rand(0, TAU),
+      spinDir: Math.random() < 0.5 ? -1 : 1,
+      phase: rand(0, TAU),
+      dead: false,
+    };
+    state.enemies.push(e);
+    state.effects.push({ kind: 'ring', x: sx, y: e.y, r: 4, max: 22, life: 0.35, maxLife: 0.35, color: type.color });
+  }
+
+  function updateWaves(dt) {
+    if (state.spawnQueue.length) {
+      state.spawnTimer -= dt;
+      if (state.spawnTimer <= 0) {
+        spawnEnemy(state.spawnQueue.shift());
+        state.spawnTimer = state.spawnInterval * rand(0.7, 1.3);
+      }
+      return;
+    }
+    if (state.enemies.length) return;
+
+    if (state.intermission <= 0) state.intermission = 2.2;
+    state.intermission -= dt;
+    if (state.intermission <= 0) {
+      state.wave++;
+      startWave();
+    }
+  }
+
+  function resolveSolid(e) {
+    for (let k = 0; k < solidRects.length; k++) {
+      const rc = solidRects[k];
+      const inside = e.x > rc.x && e.x < rc.x + rc.w && e.y > rc.y && e.y < rc.y + rc.h;
+      if (inside) {
+        const dl = e.x - rc.x;
+        const dr = rc.x + rc.w - e.x;
+        const dtr = e.y - rc.y;
+        const db = rc.y + rc.h - e.y;
+        const m = Math.min(dl, dr, dtr, db);
+        if (m === dl) { e.x = rc.x - e.r; e.vx = -Math.abs(e.vx) * 0.3; }
+        else if (m === dr) { e.x = rc.x + rc.w + e.r; e.vx = Math.abs(e.vx) * 0.3; }
+        else if (m === dtr) { e.y = rc.y - e.r; e.vy = -Math.abs(e.vy) * 0.3; }
+        else { e.y = rc.y + rc.h + e.r; e.vy = Math.abs(e.vy) * 0.3; }
+        continue;
+      }
+      const nx = clamp(e.x, rc.x, rc.x + rc.w);
+      const ny = clamp(e.y, rc.y, rc.y + rc.h);
+      let dx = e.x - nx;
+      let dy = e.y - ny;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < e.r * e.r) {
+        const d = Math.sqrt(d2) || 0.0001;
+        const push = e.r - d;
+        dx /= d;
+        dy /= d;
+        e.x += dx * push;
+        e.y += dy * push;
+        const vn = e.vx * dx + e.vy * dy;
+        if (vn < 0) {
+          e.vx -= vn * dx * 0.8;
+          e.vy -= vn * dy * 0.8;
+        }
+      }
+    }
+  }
+
+  function updateEnemies(dt) {
+    for (let i = 0; i < state.enemies.length; i++) {
+      const e = state.enemies[i];
+      if (e.dead) continue;
+      if (e.flash > 0) e.flash = Math.max(0, e.flash - dt);
+
+      const f = sampleFlow(e.x, e.y);
+      const wob = Math.sin(state.elapsed * 3.2 + e.phase) * 0.16;
+      const dx = f.x - f.y * wob;
+      const dy = f.y + f.x * wob;
+      const k = 1 - Math.exp(-9 * dt);
+      e.vx += (dx * e.speed - e.vx) * k;
+      e.vy += (dy * e.speed - e.vy) * k;
+
+      e.x += e.vx * dt;
+      e.y += e.vy * dt;
+
+      resolveSolid(e);
+      resolveSolid(e);
+
+      if (e.y < TOPBAR + e.r + 2) { e.y = TOPBAR + e.r + 2; e.vy = Math.abs(e.vy) * 0.4; }
+      if (e.y > H - e.r - 2) { e.y = H - e.r - 2; e.vy = -Math.abs(e.vy) * 0.4; }
+
+      if (e.x > W - 22) {
+        breach(e);
+        return;
+      }
+
+      if (e.x < -80 || e.y < -80 || e.y > H + 80) {
+        e.x = 20;
+        e.y = clamp(e.y, TOPBAR + 20, H - 20);
+      }
+    }
+  }
+
+  function angleLerp(a, b, t) {
+    let d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
+    return a + d * t;
+  }
+
+  function killEnemy(e) {
+    if (e.dead) return;
+    e.dead = true;
+    state.kills++;
+    state.score += e.score;
+    state.killsByType[e.type.key] = (state.killsByType[e.type.key] || 0) + 1;
+
+    const n = e.type.key === 'brute' ? 16 : 9;
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, TAU);
+      const sp = rand(20, 120);
+      state.particles.push({
+        x: e.x, y: e.y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: rand(0.25, 0.65), maxLife: 0.65,
+        size: rand(1, 3), color: e.type.color,
+      });
+    }
+    state.floats.push({ x: e.x, y: e.y, text: '+' + e.score, life: 0.9, maxLife: 0.9, color: '#fade2a' });
+    state.effects.push({ kind: 'ring', x: e.x, y: e.y, r: 4, max: 26, life: 0.3, maxLife: 0.3, color: e.type.color });
+
+    if (state.kills % 5 === 0 || e.type.key === 'brute') {
+      logEvent('ok', e.type.label + ' neutralized at ' + sector(e.x, e.y) + ' — +' + e.score);
+    }
+  }
+
+  function updateTowers(dt) {
+    for (let ti = 0; ti < state.towers.length; ti++) {
+      const t = state.towers[ti];
+      t.cd -= dt;
+      let target = null;
+      let best = t.range * t.range;
+      for (let i = 0; i < state.enemies.length; i++) {
+        const e = state.enemies[i];
+        if (e.dead) continue;
+        const dx = e.x - t.x, dy = e.y - t.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < best) {
+          best = d2;
+          target = e;
+        }
+      }
+      if (!target) continue;
+
+      const ang = Math.atan2(target.y - t.y, target.x - t.x);
+      t.angle = angleLerp(t.angle, ang, 1 - Math.exp(-14 * dt));
+
+      if (t.cd <= 0) {
+        t.cd = t.fireRate;
+        target.hp -= t.damage;
+        target.flash = 0.12;
+        const mx = t.x + Math.cos(ang) * 13;
+        const my = t.y + Math.sin(ang) * 13;
+        state.beams.push({ x1: mx, y1: my, x2: target.x, y2: target.y, life: 0.09, maxLife: 0.09 });
+        for (let p = 0; p < 3; p++) {
+          state.particles.push({
+            x: target.x, y: target.y,
+            vx: rand(-40, 40), vy: rand(-40, 40),
+            life: rand(0.15, 0.35), maxLife: 0.35,
+            size: rand(1, 2.4), color: '#c9ffd8',
+          });
+        }
+        if (target.hp <= 0) killEnemy(target);
+      }
+    }
+  }
+
+  function breach(e) {
+    if (!state.running) return;
+    state.running = false;
+    state.gameOver = true;
+    state.effects.push({ kind: 'ring', x: e.x, y: e.y, r: 8, max: 90, life: 0.6, maxLife: 0.6, color: '#f2495c' });
+    for (let i = 0; i < 20; i++) {
+      const a = rand(0, TAU);
+      const sp = rand(30, 170);
+      state.particles.push({
+        x: e.x, y: e.y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: rand(0.3, 0.8), maxLife: 0.8,
+        size: rand(1, 3), color: '#f2495c',
+      });
+    }
+    logEvent('error', 'Breach at ' + sector(e.x, e.y) + ' — perimeter lost');
+    syncUI();
+    setTimeout(showOverlay, 500);
+  }
+
+  function showOverlay() {
+    document.getElementById('overWave').textContent = state.wave;
+    document.getElementById('overScore').textContent = fmt(state.score);
+    document.getElementById('overKills').textContent = state.kills;
+    el.overlay.classList.remove('hidden');
+  }
+
+  function resetGame() {
+    state.running = true;
+    state.gameOver = false;
+    state.elapsed = 0;
+    state.wave = 1;
+    state.waveTotal = 0;
+    state.spawnQueue = [];
+    state.spawnTimer = 0;
+    state.spawnInterval = 1;
+    state.intermission = 0;
+    state.score = 0;
+    state.kills = 0;
+    state.killsByType = { scout: 0, raider: 0, brute: 0, runner: 0 };
+    state.nextTowerId = 1;
+    state.enemies.length = 0;
+    state.towers.length = 0;
+    state.beams.length = 0;
+    state.particles.length = 0;
+    state.floats.length = 0;
+    state.effects.length = 0;
+
+    el.overlay.classList.add('hidden');
+    buildField();
+    rebuildTowerTable();
+    startWave();
+    state.spawnTimer = 4.5;
+    syncUI();
+    logEvent('info', 'Perimeter defense reinitialized — good luck, operator');
+    showHint();
+  }
+
+  /* ---------------- effects ---------------- */
+
+  function updateEffects(dt) {
+    for (let i = state.effects.length - 1; i >= 0; i--) {
+      const fx = state.effects[i];
+      fx.life -= dt;
+      if (fx.life <= 0) { state.effects.splice(i, 1); continue; }
+      if (fx.kind === 'ring') {
+        const t = 1 - fx.life / fx.maxLife;
+        fx.r = 6 + (fx.max - 6) * t;
+      }
+    }
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+      const p = state.particles[i];
+      p.life -= dt;
+      if (p.life <= 0) { state.particles.splice(i, 1); continue; }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.97;
+      p.vy *= 0.97;
+    }
+    for (let i = state.floats.length - 1; i >= 0; i--) {
+      const f = state.floats[i];
+      f.life -= dt;
+      if (f.life <= 0) { state.floats.splice(i, 1); continue; }
+      f.y -= 26 * dt;
+    }
+  }
+
+  function updateBeams(dt) {
+    for (let i = state.beams.length - 1; i >= 0; i--) {
+      state.beams[i].life -= dt;
+      if (state.beams[i].life <= 0) state.beams.splice(i, 1);
+    }
+  }
+
+  /* ---------------- rendering ---------------- */
+
+  function drawPerimeter(t) {
+    const x = W - 22;
+    const g = ctx.createLinearGradient(x - 14, 0, x + 14, 0);
+    g.addColorStop(0, 'rgba(242,73,92,0)');
+    g.addColorStop(1, 'rgba(242,73,92,0.14)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - 14, TOPBAR, 28, H - TOPBAR);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(242,73,92,' + (0.35 + 0.2 * Math.sin(t * 3)).toFixed(3) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 7]);
+    ctx.lineDashOffset = -t * 22;
+    ctx.beginPath();
+    ctx.moveTo(x, TOPBAR + 4);
+    ctx.lineTo(x, H - 4);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(W - 8, H / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = 'rgba(242,73,92,.4)';
+    ctx.font = '600 9px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('P E R I M E T E R', 0, 0);
+    ctx.restore();
+  }
+
+  function drawSpawn(t) {
+    const g = ctx.createLinearGradient(0, TOPBAR, 46, TOPBAR);
+    g.addColorStop(0, 'rgba(255,152,48,0.10)');
+    g.addColorStop(1, 'rgba(255,152,48,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, TOPBAR, 46, H - TOPBAR);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,152,48,' + (0.12 + 0.06 * Math.sin(t * 2.5)).toFixed(3) + ')';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 9]);
+    ctx.lineDashOffset = t * 16;
+    ctx.beginPath();
+    ctx.moveTo(12, TOPBAR + 8);
+    ctx.lineTo(12, H - 8);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawTowers(g, t) {
+    for (let i = 0; i < state.towers.length; i++) {
+      const tw = state.towers[i];
+      const hx = mouse.x - tw.x;
+      const hy = mouse.y - tw.y;
+      const hovered = mouse.on && (hx * hx + hy * hy < 22 * 22);
+
+      if (hovered) {
+        g.beginPath();
+        g.arc(tw.x, tw.y, tw.range, 0, TAU);
+        g.fillStyle = 'rgba(115,191,105,0.035)';
+        g.fill();
+        g.strokeStyle = 'rgba(115,191,105,0.22)';
+        g.lineWidth = 1;
+        g.stroke();
+      }
+
+      g.beginPath();
+      g.arc(tw.x, tw.y, 11, 0, TAU);
+      g.fillStyle = '#101418';
+      g.fill();
+      g.strokeStyle = hovered ? 'rgba(115,191,105,0.8)' : '#2f363c';
+      g.lineWidth = 1.4;
+      g.stroke();
+
+      g.save();
+      g.translate(tw.x, tw.y);
+      g.rotate(t * 0.9);
+      g.strokeStyle = 'rgba(86,217,255,0.55)';
+      g.lineWidth = 1.4;
+      for (let k = 0; k < 3; k++) {
+        g.beginPath();
+        g.arc(0, 0, 8, (k / 3) * TAU, (k / 3) * TAU + 0.9);
+        g.stroke();
+      }
+      g.restore();
+
+      g.save();
+      g.translate(tw.x, tw.y);
+      g.rotate(tw.angle);
+      g.strokeStyle = '#73bf69';
+      g.lineWidth = 3;
+      g.lineCap = 'round';
+      g.shadowColor = 'rgba(115,191,105,0.8)';
+      g.shadowBlur = 6;
+      g.beginPath();
+      g.moveTo(3, 0);
+      g.lineTo(14, 0);
+      g.stroke();
+      g.restore();
+
+      g.beginPath();
+      g.arc(tw.x, tw.y, 2.6, 0, TAU);
+      g.fillStyle = '#d6ffe2';
+      g.fill();
+    }
+  }
+
+  function drawEnemies(t) {
+    for (let i = 0; i < state.enemies.length; i++) {
+      const e = state.enemies[i];
+      if (e.dead) continue;
+      const col = e.type.color;
+      const r = e.r;
+      const flash = e.flash > 0;
+
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(e.spin + t * 1.6 * e.spinDir);
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 9;
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.lineTo(r * 0.85, 0);
+      ctx.lineTo(0, r);
+      ctx.lineTo(-r * 0.85, 0);
+      ctx.closePath();
+      ctx.fillStyle = flash ? 'rgba(255,255,255,0.95)' : withAlpha(col, 0.22);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = flash ? '#ffffff' : col;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, Math.max(1.6, r * 0.32), 0, TAU);
+      ctx.fillStyle = flash ? '#ffffff' : withAlpha(col, 0.95);
+      ctx.fill();
+
+      if (e.hp < e.maxHp) {
+        const ratio = clamp(e.hp / e.maxHp, 0, 1);
+        const bw = Math.max(16, r * 2.2);
+        const bx = e.x - bw / 2;
+        const by = e.y - r - 8;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(bx, by, bw, 3);
+        ctx.fillStyle = ratio > 0.55 ? '#73bf69' : ratio > 0.28 ? '#ff9830' : '#f2495c';
+        ctx.fillRect(bx, by, bw * ratio, 3);
+      }
+    }
+  }
+
+  function drawBeams(g) {
+    for (let i = 0; i < state.beams.length; i++) {
+      const b = state.beams[i];
+      const a = clamp(b.life / b.maxLife, 0, 1);
+      g.save();
+      g.lineCap = 'round';
+      g.shadowColor = 'rgba(115,191,105,0.9)';
+      g.shadowBlur = 10;
+      g.strokeStyle = 'rgba(210,255,224,' + (a * 0.28).toFixed(3) + ')';
+      g.lineWidth = 4;
+      g.beginPath();
+      g.moveTo(b.x1, b.y1);
+      g.lineTo(b.x2, b.y2);
+      g.stroke();
+      g.strokeStyle = 'rgba(235,255,242,' + (a * 0.95).toFixed(3) + ')';
+      g.lineWidth = 1.4;
+      g.beginPath();
+      g.moveTo(b.x1, b.y1);
+      g.lineTo(b.x2, b.y2);
+      g.stroke();
+      g.restore();
+    }
+  }
+
+  function drawEffects(g) {
+    for (let i = 0; i < state.effects.length; i++) {
+      const fx = state.effects[i];
+      const a = clamp(fx.life / fx.maxLife, 0, 1);
+      g.beginPath();
+      g.arc(fx.x, fx.y, fx.r, 0, TAU);
+      g.strokeStyle = withAlpha(fx.color, a * 0.8);
+      g.lineWidth = 1.6;
+      g.stroke();
+    }
+  }
+
+  function drawParticles() {
+    for (let i = 0; i < state.particles.length; i++) {
+      const p = state.particles[i];
+      const a = clamp(p.life / p.maxLife, 0, 1);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      const s = p.size;
+      ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawFloats() {
+    ctx.textAlign = 'center';
+    ctx.font = '600 11px Inter, system-ui, sans-serif';
+    for (let i = 0; i < state.floats.length; i++) {
+      const f = state.floats[i];
+      const a = clamp(f.life / f.maxLife, 0, 1);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'left';
+  }
+
+  function drawGhost(g) {
+    if (!state.running || !mouse.on) return;
+    const x = mouse.x, y = mouse.y;
+    if (!panelAt(x, y)) return;
+    const ok = canPlace(x, y);
+
+    g.save();
+    g.beginPath();
+    g.arc(x, y, TOWER.range, 0, TAU);
+    g.fillStyle = ok ? 'rgba(115,191,105,0.04)' : 'rgba(242,73,92,0.04)';
+    g.fill();
+    g.strokeStyle = ok ? 'rgba(115,191,105,0.22)' : 'rgba(242,73,92,0.22)';
+    g.lineWidth = 1;
+    g.setLineDash([4, 6]);
+    g.stroke();
+    g.setLineDash([]);
+
+    g.globalAlpha = ok ? 0.9 : 0.7;
+    g.beginPath();
+    g.arc(x, y, 11, 0, TAU);
+    g.strokeStyle = ok ? '#73bf69' : '#f2495c';
+    g.lineWidth = 1.5;
+    g.stroke();
+    g.beginPath();
+    g.arc(x, y, 2, 0, TAU);
+    g.fillStyle = ok ? '#73bf69' : '#f2495c';
+    g.fill();
+    g.restore();
+  }
+
+  function render(t) {
+    ctx.clearRect(0, 0, W, H);
+    fctx.clearRect(0, 0, W, H);
+
+    drawPerimeter(t);
+    drawSpawn(t);
+    drawEnemies(t);
+    drawParticles();
+    drawFloats();
+
+    drawEffects(fctx);
+    drawTowers(fctx, t);
+    drawBeams(fctx);
+    drawGhost(fctx);
+  }
+
+  /* ---------------- widgets ---------------- */
+
+  function sector(x, y) {
+    const col = clamp(Math.floor(x / (W / 6)), 0, 5);
+    const row = clamp(Math.floor((y - TOPBAR) / Math.max(1, (H - TOPBAR) / 4)), 0, 3);
+    return String.fromCharCode(65 + col) + (row + 1);
+  }
+
+  function logEvent(level, msg) {
+    if (!el.log) return;
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    const ts = new Date().toTimeString().slice(0, 8);
+    line.innerHTML = '<span class="log-time">' + ts + '</span><span class="log-level ' + level + '">' + level + '</span><span class="log-msg"></span>';
+    line.querySelector('.log-msg').textContent = msg;
+    el.log.appendChild(line);
+    while (el.log.children.length > 26) el.log.removeChild(el.log.firstChild);
+    el.log.scrollTop = el.log.scrollHeight;
+  }
+
+  function syncUI() {
+    if (!el.score) return;
+    const remaining = state.enemies.length + state.spawnQueue.length;
+
+    el.score.textContent = fmt(state.score);
+    el.scoreSub.textContent = state.enemies.length + ' alive · ' + state.kills + ' neutralized';
+
+    el.enemies.textContent = remaining;
+    el.enemiesSub.textContent = state.running
+      ? 'wave ' + state.wave + ' · ' + state.waveTotal + ' total'
+      : 'perimeter lost';
+
+    el.wave.textContent = state.wave;
+    let waveSub;
+    if (!state.running) waveSub = 'defense failed';
+    else if (state.spawnQueue.length) waveSub = state.spawnQueue.length + ' queued';
+    else if (state.enemies.length) waveSub = 'hostiles engaged';
+    else if (state.intermission > 0) waveSub = 'next wave in ' + Math.max(1, Math.ceil(state.intermission)) + 's';
+    else waveSub = 'sector clear';
+    el.waveSub.textContent = waveSub;
+
+    el.towers.textContent = state.towers.length;
+    const dps = state.towers.length * (TOWER.damage / TOWER.fireRate);
+    el.towersSub.textContent = fmt(dps) + ' dps · left-click to deploy';
+
+    updateKillBars();
+  }
+
+  function buildKillRows() {
+    if (!el.killRows) return;
+    el.killRows.innerHTML = '';
+    Object.keys(TYPES).forEach(key => {
+      const type = TYPES[key];
+      const row = document.createElement('div');
+      row.className = 'kill-row';
+      row.innerHTML =
+        '<span class="kill-label"><i style="background:' + type.color + '"></i>' + type.label + '</span>' +
+        '<span class="kill-track"><span class="kill-bar" style="background:' + type.color + '"></span></span>' +
+        '<span class="kill-count">0</span>';
+      el.killRows.appendChild(row);
+      killEls[key] = {
+        bar: row.querySelector('.kill-bar'),
+        count: row.querySelector('.kill-count'),
+      };
+    });
+  }
+
+  function updateKillBars() {
+    let max = 1;
+    for (const k in state.killsByType) max = Math.max(max, state.killsByType[k]);
+    for (const k in killEls) {
+      const c = state.killsByType[k] || 0;
+      killEls[k].count.textContent = c;
+      killEls[k].bar.style.width = Math.round((c / max) * 100) + '%';
+    }
+  }
+
+  function rebuildTowerTable() {
+    if (!el.towerRows) return;
+    const list = state.towers.slice(-6).reverse();
+    if (!list.length) {
+      el.towerRows.innerHTML = '<div class="mini-empty">No turrets deployed — click a panel to deploy</div>';
+      return;
+    }
+    el.towerRows.innerHTML = list.map(t =>
+      '<div class="mini-row">' +
+        '<span class="mono">LZ-' + String(t.id).padStart(2, '0') + '</span>' +
+        '<span>' + sector(t.x, t.y) + '</span>' +
+        '<span class="status"><i class="dot"></i>online</span>' +
+      '</div>'
+    ).join('');
+    if (state.towers.length > 6) {
+      el.towerRows.innerHTML +=
+        '<div class="mini-row">' +
+          '<span class="mono">+' + (state.towers.length - 6) + '</span>' +
+          '<span>more units</span>' +
+          '<span class="status"><i class="dot"></i>online</span>' +
+        '</div>';
+    }
+  }
+
+  /* ---------------- fake charts ---------------- */
+
+  const chart = {
+    a: Array.from({ length: 64 }, () => rand(24, 52)),
+    b: Array.from({ length: 64 }, () => rand(14, 34)),
+  };
+
+  function drawChart() {
+    const svg = el.ts;
+    if (!svg) return;
+    const w = svg.clientWidth || 700;
+    const h = svg.clientHeight || 200;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+
+    const padL = 32, padR = 10, padT = 10, padB = 20;
+    const cw = Math.max(10, w - padL - padR);
+    const ch = Math.max(10, h - padT - padB);
+    const n = chart.a.length;
+
+    const point = (arr, i) => {
+      const x = padL + (i / (n - 1)) * cw;
+      const y = padT + ch - (arr[i] / 100) * ch;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    };
+    const line = arr => arr.map((_, i) => point(arr, i)).join(' ');
+    const area = arr => (padL + ',' + (padT + ch) + ' ' + line(arr) + ' ' + (padL + cw) + ',' + (padT + ch));
+
+    let grid = '';
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (i / 4) * ch;
+      const val = 100 - i * 25;
+      grid += '<line x1="' + padL + '" y1="' + y + '" x2="' + (padL + cw) + '" y2="' + y + '" stroke="#262b30" stroke-width="1"/>';
+      grid += '<text x="' + (padL - 8) + '" y="' + (y + 3) + '" text-anchor="end" class="chart-text">' + val + '</text>';
+    }
+
+    let labels = '';
+    const times = ['-60m', '-45m', '-30m', '-15m', 'now'];
+    for (let i = 0; i < 5; i++) {
+      const x = padL + (i / 4) * cw;
+      const anchor = i === 0 ? 'start' : i === 4 ? 'end' : 'middle';
+      labels += '<text x="' + x + '" y="' + (h - 6) + '" text-anchor="' + anchor + '" class="chart-text">' + times[i] + '</text>';
+    }
+
+    svg.innerHTML =
+      '<defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#73bf69" stop-opacity="0.22"/>' +
+        '<stop offset="1" stop-color="#73bf69" stop-opacity="0"/>' +
+      '</linearGradient></defs>' +
+      grid + labels +
+      '<polygon points="' + area(chart.b) + '" fill="url(#areaGrad)"/>' +
+      '<polyline points="' + line(chart.a) + '" fill="none" stroke="#f2495c" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<polyline points="' + line(chart.b) + '" fill="none" stroke="#73bf69" stroke-width="1.6" stroke-linejoin="round"/>';
+  }
+
+  function updateChart() {
+    const target = clamp(16 + state.enemies.length * 7 + (state.spawnQueue.length ? 8 : 0), 12, 94);
+    const lastA = chart.a[chart.a.length - 1];
+    chart.a.push(clamp(lastA + (target - lastA) * 0.3 + rand(-8, 8), 6, 98));
+    chart.a.shift();
+
+    const lastB = chart.b[chart.b.length - 1];
+    const tb = chart.a[chart.a.length - 1] * rand(0.55, 0.92);
+    chart.b.push(clamp(lastB + (tb - lastB) * 0.35 + rand(-3, 3), 4, 98));
+    chart.b.shift();
+
+    drawChart();
+  }
+
+  const gaugeState = { value: 78 };
+
+  function polar(cx, cy, r, deg) {
+    const rad = (deg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+  }
+
+  function arcPath(cx, cy, r, a0, a1) {
+    const p0 = polar(cx, cy, r, a0);
+    const p1 = polar(cx, cy, r, a1);
+    const large = Math.abs(a0 - a1) > 180 ? 1 : 0;
+    return 'M ' + p0.x.toFixed(2) + ' ' + p0.y.toFixed(2) +
+      ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' +
+      p1.x.toFixed(2) + ' ' + p1.y.toFixed(2);
+  }
+
+  function drawGauge() {
+    const svg = el.gauge;
+    if (!svg) return;
+    const val = gaugeState.value;
+    const f = clamp(val / 100, 0, 1);
+    const track = arcPath(100, 94, 70, 210, -30);
+    const fill = f > 0.004 ? arcPath(100, 94, 70, 210, 210 - 240 * f) : '';
+
+    svg.innerHTML =
+      '<defs><linearGradient id="gaugeGrad" x1="0" y1="1" x2="1" y2="0">' +
+        '<stop offset="0" stop-color="#73bf69"/>' +
+        '<stop offset="0.6" stop-color="#fade2a"/>' +
+        '<stop offset="1" stop-color="#ff9830"/>' +
+      '</linearGradient></defs>' +
+      '<path d="' + track + '" fill="none" stroke="#23282d" stroke-width="12" stroke-linecap="round"/>' +
+      (fill ? '<path d="' + fill + '" fill="none" stroke="url(#gaugeGrad)" stroke-width="12" stroke-linecap="round"/>' : '') +
+      '<text x="100" y="88" text-anchor="middle" fill="#ccccdc" font-size="30" font-weight="600" font-family="Inter, system-ui, sans-serif">' +
+        Math.round(val) + '<tspan font-size="13" fill="#8f959b">%</tspan></text>' +
+      '<text x="100" y="110" text-anchor="middle" fill="#6f757b" font-size="7.5" letter-spacing="1.4" font-family="Inter, system-ui, sans-serif">CAPACITOR</text>';
+  }
+
+  function showHint() {
+    if (!el.hint) return;
+    el.hint.classList.remove('hidden');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => el.hint.classList.add('hidden'), 12000);
+  }
+
+  function hideHint() {
+    if (!el.hint) return;
+    el.hint.classList.add('hidden');
+    clearTimeout(hintTimer);
+  }
+
+  /* ---------------- input ---------------- */
+
+  window.addEventListener('mousemove', e => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+    mouse.on = e.target === fxCanvas;
+    fxCanvas.style.cursor = panelAt(mouse.x, mouse.y) ? 'crosshair' : 'default';
+  });
+  window.addEventListener('mouseout', e => { if (!e.relatedTarget) mouse.on = false; });
+
+  fxCanvas.addEventListener('click', e => {
+    if (!state.running) return;
+    const x = e.clientX, y = e.clientY;
+    if (!panelAt(x, y)) return;
+    if (!canPlace(x, y)) {
+      state.effects.push({ kind: 'ring', x: x, y: y, r: 10, max: 26, life: 0.25, maxLife: 0.25, color: '#f2495c' });
+      return;
+    }
+    placeTower(x, y);
+  });
+
+  document.getElementById('restartBtn').addEventListener('click', resetGame);
+
+  window.addEventListener('resize', queueResize);
+  window.addEventListener('load', () => {
+    queueResize();
+    setTimeout(buildField, 250);
+  });
+
+  /* ---------------- loop ---------------- */
+
+  let last = performance.now();
+
+  function frame(now) {
+    const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+    last = now;
+    state.elapsed += dt;
+
+    if (state.running) {
+      updateWaves(dt);
+      updateEnemies(dt);
+      updateTowers(dt);
+      state.enemies = state.enemies.filter(e => !e.dead);
+    }
+    updateEffects(dt);
+    updateBeams(dt);
+
+    render(now / 1000);
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------------- boot ---------------- */
+
+  const FAKE_LOGS = [
+    'flow field recalculated in 3.2 ms',
+    'panel query returned 240 points',
+    'telemetry heartbeat nominal',
+    'reactor coolant loop stable',
+    'ingest pipeline backpressure cleared',
+    'perimeter sensor sweep complete',
+    'agent metrics flushed to remote write',
+    'route table compacted — 0 orphans',
+  ];
+
+  function boot() {
+    resize();
+    buildKillRows();
+    rebuildTowerTable();
+    drawGauge();
+    updateChart();
+    syncUI();
+    logEvent('info', 'Dashboard "Perimeter Defense" loaded');
+    logEvent('ok', 'Perimeter sensors online');
+    logEvent('warn', 'Hostile signatures on the left edge');
+    startWave();
+    state.spawnTimer = 4.5;
+    syncUI();
+    showHint();
+    requestAnimationFrame(frame);
+  }
+
+  setInterval(() => {
+    syncUI();
+  }, 120);
+
+  setInterval(() => {
+    if (state.running && Math.random() < 0.72) {
+      logEvent(pick(['info', 'info', 'ok']), pick(FAKE_LOGS));
+    }
+  }, 4200);
+
+  setInterval(() => {
+    gaugeState.value = clamp(gaugeState.value + rand(-7, 7), 46, 97);
+    drawGauge();
+  }, 1800);
+
+  setInterval(() => {
+    updateChart();
+  }, 1100);
+
+  boot();
+})();
+</script>
+</body>
+</html>
