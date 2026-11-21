@@ -1,5 +1,7 @@
 # Perimeter Defense
 
+> You’re the last human DevOps engineer, defending prod against a swarm of AI agents.
+
 A fake Grafana dashboard that hides a playable tower-defense game in the gaps
 between its panels. Enemies spawn on the left, weave through the dashboard
 gutters, and breach the red perimeter on the right if you fail to stop them.
