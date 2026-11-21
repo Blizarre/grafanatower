@@ -7,6 +7,11 @@ gutters, and breach the red perimeter on the right if you fail to stop them.
 Everything is self-contained in `index.html` — HTML, CSS, JavaScript, and
 synthesized audio. No build step, no dependencies, no external assets.
 
+![Perimeter Defense: turrets and generators deployed between Grafana panels](screenshot.jpg)
+
+*Late-game defense: laser turrets and crystal generators spread across the
+panels, with the live capacitor gauge and defense grid tracking the run.*
+
 ## Run
 
 Open `index.html` directly in a browser, or serve the folder:
