@@ -230,6 +230,8 @@
   .dot{width:5px; height:5px; border-radius:50%; background:var(--green); box-shadow:0 0 5px rgba(115,191,105,.8); display:inline-block; flex:0 0 auto}
   .dot.gen{background:var(--cyan); box-shadow:0 0 5px rgba(86,217,255,.8)}
   .status.gen{color:var(--cyan)}
+  .dot.mega{background:#ff5ecb; box-shadow:0 0 6px rgba(255,94,203,.9)}
+  .status.mega{color:#ff8fda}
   .mini-empty{color:var(--text-faint); font-size:10.5px; padding-top:10px; white-space:normal; line-height:1.5}
   #towerRows{overflow:hidden; display:flex; flex-direction:column}
 
@@ -267,6 +269,11 @@
     border-color:rgba(86,217,255,.7);
     background:rgba(86,217,255,.12);
     color:#cdf5ff;
+  }
+  .build-btn[data-kind="mega"].is-selected{
+    border-color:rgba(255,94,203,.7);
+    background:rgba(255,94,203,.12);
+    color:#ffd1f0;
   }
   .build-ico{display:flex; width:15px; height:15px; flex:0 0 auto}
   .build-ico svg{width:15px; height:15px; display:block}
@@ -360,7 +367,8 @@
   }
   @media (max-width: 900px){
     .buildbar{left:10px; right:10px; bottom:18px; justify-content:space-between}
-    .hint{bottom:86px}
+    .hint{bottom:86px; max-width:calc(100vw - 24px); justify-content:center}
+    .hint-danger, .hint-sep{display:none}
     .build-shot{display:none}
     .build-title{display:none}
     .build-status{min-width:0; flex:1 1 auto}
@@ -582,6 +590,17 @@
       <span>Generator</span>
       <kbd>2</kbd>
     </button>
+    <button class="build-btn" type="button" data-kind="mega" aria-pressed="false" title="Mega laser — 2x range, 4x damage, half fire rate, 4x shot cost">
+      <span class="build-ico">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="2.4"/>
+          <circle cx="8" cy="8" r="5.4"/>
+          <path d="M8 0.6v2.2M8 13.2v2.2M0.6 8h2.2M13.2 8h2.2"/>
+        </svg>
+      </span>
+      <span>Mega</span>
+      <kbd>3</kbd>
+    </button>
   </div>
   <div class="build-status">
     <div class="build-status-row">
@@ -594,7 +613,7 @@
 
 <div class="hint" id="hint">
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><rect x="3.5" y="1.5" width="9" height="13" rx="4.5"/><path d="M8 4v3"/></svg>
-  <span><strong>Click a panel</strong> to build · <strong>1</strong> turret / <strong>2</strong> generator</span>
+  <span><strong>Click a panel</strong> to build · <strong>1</strong> turret / <strong>2</strong> generator / <strong>3</strong> mega</span>
   <span class="hint-sep"></span>
   <span class="hint-danger">Turrets drain the capacitor — keep generators online</span>
 </div>
@@ -612,7 +631,7 @@
       <div><span id="overKills">0</span><small>kills</small></div>
     </div>
     <button class="btn primary wide" id="restartBtn" type="button">Redeploy defenses</button>
-    <p class="overlay-note">Tip: one generator roughly sustains one firing turret — balance supply before adding more guns.</p>
+    <p class="overlay-note">Tip: one generator roughly sustains a firing turret — mega lasers are especially thirsty.</p>
   </div>
 </div>
 
@@ -685,6 +704,41 @@
     generatorOutput: 9,
     buildTime: 3,
   };
+  const MEGA = {
+    range: TOWER.range * 2,
+    fireRate: TOWER.fireRate * 2,
+    damage: TOWER.damage * 4,
+    shotCost: POWER.shotCost * 4,
+    buildTime: POWER.buildTime * 3,
+    radius: 14,
+    color: '#ff5ecb',
+  };
+  const DIFFICULTY = {
+    lateWaveStart: 3,
+    countBase: 5,
+    countPerWave: 2,
+    lateExtraCountPerWave: 1,
+    lateCountMultiplier: 2.0,
+    countCap: 100,
+    hpPerWave: 0.16,
+    lateHpPerWave: 0.07,
+    speedPerWave: 0.025,
+    lateSpeedPerWave: 0.012,
+    speedCap: 0.6,
+    spawnBase: 1.05,
+    spawnPerWave: 0.05,
+    lateSpawnPerWave: 0.01,
+    spawnMin: 0.30,
+    bruteBase: 0.38,
+    brutePerWave: 0.02,
+    bruteCap: 0.44,
+    runnerBase: 0.04,
+    runnerPerWave: 0.015,
+    runnerCap: 0.16,
+    raiderBase: 0.26,
+    raiderDecay: 0.005,
+    raiderFloor: 0.20,
+  };
 
   const state = {
     running: true,
@@ -701,6 +755,7 @@
     killsByType: { scout: 0, raider: 0, brute: 0, runner: 0 },
     nextTowerId: 1,
     nextGeneratorId: 1,
+    nextMegaId: 1,
     enemies: [],
     towers: [],
     generators: [],
@@ -1000,12 +1055,15 @@
       return;
     }
     const isGen = kind === 'generator';
-    state.site = { kind: kind, x: x, y: y, progress: 0, duration: POWER.buildTime };
+    const isMega = kind === 'mega';
+    const label = isGen ? 'generator' : isMega ? 'mega laser' : 'turret';
+    const buildTime = isMega ? MEGA.buildTime : POWER.buildTime;
+    state.site = { kind: kind, x: x, y: y, progress: 0, duration: buildTime };
     state.effects.push({
       kind: 'ring', x: x, y: y, r: 8, max: 36, life: 0.4, maxLife: 0.4,
-      color: isGen ? '#56d9ff' : '#73bf69',
+      color: isGen ? '#56d9ff' : isMega ? MEGA.color : '#73bf69',
     });
-    logEvent('info', 'Fabricator building ' + (isGen ? 'generator' : 'turret') + ' — sector ' + sector(x, y));
+    logEvent('info', 'Fabricator building ' + label + ' — sector ' + sector(x, y));
     hideHint();
     updateBuildUI();
     syncUI();
@@ -1031,21 +1089,28 @@
       state.effects.push({ kind: 'ring', x: g.x, y: g.y, r: 8, max: 48, life: 0.5, maxLife: 0.5, color: '#56d9ff' });
       logEvent('ok', 'Generator GN-' + String(g.id).padStart(2, '0') + ' online — +' + POWER.generatorOutput.toFixed(1) + '/s');
     } else {
+      const isMega = site.kind === 'mega';
+      const spec = isMega ? MEGA : { range: TOWER.range, fireRate: TOWER.fireRate, damage: TOWER.damage, shotCost: POWER.shotCost };
+      const id = isMega ? state.nextMegaId++ : state.nextTowerId++;
       const t = {
-        kind: 'turret',
-        id: state.nextTowerId++,
+        kind: isMega ? 'mega' : 'turret',
+        id: id,
         x: site.x,
         y: site.y,
         angle: -Math.PI / 2,
         cd: rand(0, 0.15),
-        range: TOWER.range,
-        fireRate: TOWER.fireRate,
-        damage: TOWER.damage,
+        range: spec.range,
+        fireRate: spec.fireRate,
+        damage: spec.damage,
+        shotCost: spec.shotCost,
         builtAt: state.elapsed,
       };
       state.towers.push(t);
-      state.effects.push({ kind: 'ring', x: t.x, y: t.y, r: 8, max: 48, life: 0.5, maxLife: 0.5, color: '#73bf69' });
-      logEvent('ok', 'Turret LZ-' + String(t.id).padStart(2, '0') + ' online — sector ' + sector(t.x, t.y));
+      state.effects.push({
+        kind: 'ring', x: t.x, y: t.y, r: 8, max: isMega ? 72 : 48, life: 0.5, maxLife: 0.5,
+        color: isMega ? MEGA.color : '#73bf69',
+      });
+      logEvent('ok', (isMega ? 'Mega laser MX-' : 'Turret LZ-') + String(t.id).padStart(2, '0') + ' online — sector ' + sector(t.x, t.y));
     }
     rebuildStructureTable();
     updateBuildUI();
@@ -1053,15 +1118,28 @@
   }
 
   function pickType(wave) {
-    const r = Math.random();
-    if (wave >= 5 && r < 0.16) return TYPES.runner;
-    if (wave >= 3 && r < 0.38) return TYPES.brute;
-    if (wave >= 2 && r < 0.64) return TYPES.raider;
+    if (wave < 2) return TYPES.scout;
+    if (wave === 2) return Math.random() < 0.64 ? TYPES.raider : TYPES.scout;
+
+    const late = Math.max(0, wave - DIFFICULTY.lateWaveStart);
+    const runner = wave >= DIFFICULTY.lateWaveStart + 1
+      ? Math.min(DIFFICULTY.runnerCap, DIFFICULTY.runnerBase + late * DIFFICULTY.runnerPerWave)
+      : 0;
+    const brute = Math.min(DIFFICULTY.bruteCap, DIFFICULTY.bruteBase + late * DIFFICULTY.brutePerWave);
+    const raider = Math.max(DIFFICULTY.raiderFloor, DIFFICULTY.raiderBase - late * DIFFICULTY.raiderDecay);
+
+    const roll = Math.random();
+    if (roll < runner) return TYPES.runner;
+    if (roll < runner + brute) return TYPES.brute;
+    if (roll < runner + brute + raider) return TYPES.raider;
     return TYPES.scout;
   }
 
   function makeWaveSpecs(wave) {
-    const count = Math.min(30, 5 + wave * 2);
+    const late = Math.max(0, wave - DIFFICULTY.lateWaveStart);
+    const raw = DIFFICULTY.countBase + wave * DIFFICULTY.countPerWave + late * DIFFICULTY.lateExtraCountPerWave;
+    const scaled = late > 0 ? Math.round(raw * DIFFICULTY.lateCountMultiplier) : raw;
+    const count = Math.min(DIFFICULTY.countCap, scaled);
     const specs = [];
     for (let i = 0; i < count; i++) specs.push(pickType(wave));
     return specs;
@@ -1071,9 +1149,16 @@
     state.spawnQueue = makeWaveSpecs(state.wave);
     state.waveTotal = state.spawnQueue.length;
     state.spawnTimer = 0.6;
-    state.spawnInterval = Math.max(0.34, 1.05 - state.wave * 0.05);
+    const late = Math.max(0, state.wave - DIFFICULTY.lateWaveStart);
+    state.spawnInterval = Math.max(
+      DIFFICULTY.spawnMin,
+      DIFFICULTY.spawnBase - state.wave * DIFFICULTY.spawnPerWave - late * DIFFICULTY.lateSpawnPerWave
+    );
     state.intermission = 0;
     logEvent('info', 'Wave ' + state.wave + ' inbound — ' + state.waveTotal + ' hostiles detected');
+    if (state.wave === DIFFICULTY.lateWaveStart + 1) {
+      logEvent('warn', 'Threat escalation — heavier waves are inbound');
+    }
     syncUI();
   }
 
@@ -1085,8 +1170,12 @@
       sx = cell.x;
       sy = cell.y;
     }
-    const hpScale = 1 + (state.wave - 1) * 0.16;
-    const spScale = 1 + Math.min(0.45, (state.wave - 1) * 0.025);
+    const late = Math.max(0, state.wave - DIFFICULTY.lateWaveStart);
+    const hpScale = 1 + (state.wave - 1) * DIFFICULTY.hpPerWave + late * DIFFICULTY.lateHpPerWave;
+    const spScale = 1 + Math.min(
+      DIFFICULTY.speedCap,
+      (state.wave - 1) * DIFFICULTY.speedPerWave + late * DIFFICULTY.lateSpeedPerWave
+    );
     const hp = type.hp * hpScale;
     const e = {
       type: type,
@@ -1273,21 +1362,26 @@
       t.angle = angleLerp(t.angle, ang, 1 - Math.exp(-14 * dt));
 
       if (t.cd <= 0) {
-        if (state.power < POWER.shotCost) continue;
-        state.power = Math.max(0, state.power - POWER.shotCost);
+        if (state.power < t.shotCost) continue;
+        const mega = t.kind === 'mega';
+        state.power = Math.max(0, state.power - t.shotCost);
         t.cd = t.fireRate;
         target.hp -= t.damage;
-        target.flash = 0.12;
-        const mx = t.x + Math.cos(ang) * 13;
-        const my = t.y + Math.sin(ang) * 13;
-        state.beams.push({ x1: mx, y1: my, x2: target.x, y2: target.y, life: 0.09, maxLife: 0.09 });
-        playLaser(t.x);
-        for (let p = 0; p < 3; p++) {
+        target.flash = mega ? 0.2 : 0.12;
+        const muzzle = mega ? 19 : 13;
+        const mx = t.x + Math.cos(ang) * muzzle;
+        const my = t.y + Math.sin(ang) * muzzle;
+        const life = mega ? 0.16 : 0.09;
+        state.beams.push({ x1: mx, y1: my, x2: target.x, y2: target.y, life: life, maxLife: life, mega: mega });
+        playLaser(t.x, mega);
+        const sparks = mega ? 7 : 3;
+        for (let p = 0; p < sparks; p++) {
           state.particles.push({
             x: target.x, y: target.y,
-            vx: rand(-40, 40), vy: rand(-40, 40),
-            life: rand(0.15, 0.35), maxLife: 0.35,
-            size: rand(1, 2.4), color: '#c9ffd8',
+            vx: rand(-60, 60), vy: rand(-60, 60),
+            life: rand(0.15, mega ? 0.5 : 0.35), maxLife: 0.5,
+            size: mega ? rand(1.4, 3.4) : rand(1, 2.4),
+            color: mega ? '#ffd1f0' : '#c9ffd8',
           });
         }
         if (target.hp <= 0) killEnemy(target);
@@ -1337,6 +1431,7 @@
     state.killsByType = { scout: 0, raider: 0, brute: 0, runner: 0 };
     state.nextTowerId = 1;
     state.nextGeneratorId = 1;
+    state.nextMegaId = 1;
     state.power = POWER.start;
     state.lowPower = false;
     state.depleted = false;
@@ -1448,39 +1543,53 @@
   }
 
   function drawTowers(g, t) {
-    const powered = state.power >= POWER.shotCost;
     for (let i = 0; i < state.towers.length; i++) {
       const tw = state.towers[i];
+      const mega = tw.kind === 'mega';
+      const col = mega ? MEGA.color : '#73bf69';
+      const powered = state.power >= tw.shotCost;
+      const baseR = mega ? 14 : 11;
+      const hoverR = mega ? 24 : 22;
       const hx = mouse.x - tw.x;
       const hy = mouse.y - tw.y;
-      const hovered = mouse.on && (hx * hx + hy * hy < 22 * 22);
+      const hovered = mouse.on && (hx * hx + hy * hy < hoverR * hoverR);
 
       if (hovered) {
         g.beginPath();
         g.arc(tw.x, tw.y, tw.range, 0, TAU);
-        g.fillStyle = 'rgba(115,191,105,0.035)';
+        g.fillStyle = mega ? 'rgba(255,94,203,0.035)' : 'rgba(115,191,105,0.035)';
         g.fill();
-        g.strokeStyle = 'rgba(115,191,105,0.22)';
+        g.strokeStyle = mega ? 'rgba(255,94,203,0.25)' : 'rgba(115,191,105,0.22)';
         g.lineWidth = 1;
         g.stroke();
       }
 
+      if (mega) {
+        const pulse = 17 + Math.sin(t * 2.4 + tw.id) * 2;
+        g.beginPath();
+        g.arc(tw.x, tw.y, pulse, 0, TAU);
+        g.strokeStyle = 'rgba(255,94,203,0.14)';
+        g.lineWidth = 1.2;
+        g.stroke();
+      }
+
       g.beginPath();
-      g.arc(tw.x, tw.y, 11, 0, TAU);
-      g.fillStyle = '#101418';
+      g.arc(tw.x, tw.y, baseR, 0, TAU);
+      g.fillStyle = mega ? '#1a1017' : '#101418';
       g.fill();
-      g.strokeStyle = hovered ? 'rgba(115,191,105,0.8)' : '#2f363c';
+      g.strokeStyle = hovered ? (mega ? 'rgba(255,94,203,0.9)' : 'rgba(115,191,105,0.8)') : (mega ? '#4d2c40' : '#2f363c');
       g.lineWidth = 1.4;
       g.stroke();
 
       g.save();
       g.translate(tw.x, tw.y);
-      g.rotate(t * 0.9);
-      g.strokeStyle = 'rgba(86,217,255,0.55)';
+      g.rotate(t * (mega ? 1.3 : 0.9));
+      g.strokeStyle = mega ? 'rgba(255,94,203,0.55)' : 'rgba(86,217,255,0.55)';
       g.lineWidth = 1.4;
+      const ringR = mega ? 10.5 : 8;
       for (let k = 0; k < 3; k++) {
         g.beginPath();
-        g.arc(0, 0, 8, (k / 3) * TAU, (k / 3) * TAU + 0.9);
+        g.arc(0, 0, ringR, (k / 3) * TAU, (k / 3) * TAU + 0.9);
         g.stroke();
       }
       g.restore();
@@ -1488,20 +1597,29 @@
       g.save();
       g.translate(tw.x, tw.y);
       g.rotate(tw.angle);
-      g.strokeStyle = '#73bf69';
-      g.lineWidth = 3;
+      g.strokeStyle = col;
+      g.lineWidth = mega ? 5 : 3;
       g.lineCap = 'round';
-      g.shadowColor = 'rgba(115,191,105,0.8)';
-      g.shadowBlur = 6;
+      g.shadowColor = mega ? 'rgba(255,94,203,0.9)' : 'rgba(115,191,105,0.8)';
+      g.shadowBlur = mega ? 12 : 6;
       g.beginPath();
-      g.moveTo(3, 0);
-      g.lineTo(14, 0);
+      g.moveTo(mega ? 2 : 3, 0);
+      g.lineTo(mega ? 20 : 14, 0);
       g.stroke();
+      if (mega) {
+        g.shadowBlur = 0;
+        g.strokeStyle = 'rgba(255,225,246,0.7)';
+        g.lineWidth = 1.4;
+        g.beginPath();
+        g.moveTo(5, 0);
+        g.lineTo(18, 0);
+        g.stroke();
+      }
       g.restore();
 
       g.beginPath();
-      g.arc(tw.x, tw.y, 2.6, 0, TAU);
-      g.fillStyle = powered ? '#d6ffe2' : '#f2495c';
+      g.arc(tw.x, tw.y, mega ? 3.4 : 2.6, 0, TAU);
+      g.fillStyle = powered ? (mega ? '#ffe1f6' : '#d6ffe2') : '#f2495c';
       g.fill();
     }
   }
@@ -1559,7 +1677,10 @@
     const site = state.site;
     if (!site) return;
     const f = clamp(site.progress / site.duration, 0, 1);
-    const col = site.kind === 'generator' ? '#56d9ff' : '#73bf69';
+    const isGen = site.kind === 'generator';
+    const isMega = site.kind === 'mega';
+    const col = isGen ? '#56d9ff' : isMega ? MEGA.color : '#73bf69';
+    const craftR = isMega ? 19 : 17;
     const remain = Math.max(0, site.duration - site.progress);
 
     g.save();
@@ -1569,7 +1690,7 @@
     g.strokeStyle = 'rgba(250,222,42,0.55)';
     g.lineWidth = 1;
     g.beginPath();
-    g.arc(0, 0, 17, 0, TAU);
+    g.arc(0, 0, craftR, 0, TAU);
     g.stroke();
     g.setLineDash([]);
 
@@ -1577,11 +1698,11 @@
     g.lineWidth = 2.4;
     g.lineCap = 'round';
     g.beginPath();
-    g.arc(0, 0, 17, -Math.PI / 2, -Math.PI / 2 + TAU * f);
+    g.arc(0, 0, craftR, -Math.PI / 2, -Math.PI / 2 + TAU * f);
     g.stroke();
 
     g.globalAlpha = 0.2 + f * 0.55;
-    if (site.kind === 'generator') {
+    if (isGen) {
       g.beginPath();
       g.moveTo(0, -11);
       g.lineTo(5.5, -1);
@@ -1595,7 +1716,7 @@
       g.stroke();
     } else {
       g.beginPath();
-      g.arc(0, 0, 10, 0, TAU);
+      g.arc(0, 0, isMega ? 13 : 10, 0, TAU);
       g.fillStyle = 'rgba(16,20,24,0.9)';
       g.fill();
       g.strokeStyle = col;
@@ -1603,8 +1724,8 @@
       g.stroke();
       g.beginPath();
       g.moveTo(3, 0);
-      g.lineTo(12, 0);
-      g.lineWidth = 2.5;
+      g.lineTo(isMega ? 18 : 12, 0);
+      g.lineWidth = isMega ? 4 : 2.5;
       g.stroke();
     }
     g.globalAlpha = 1;
@@ -1665,18 +1786,21 @@
     for (let i = 0; i < state.beams.length; i++) {
       const b = state.beams[i];
       const a = clamp(b.life / b.maxLife, 0, 1);
+      const mega = b.mega;
+      const glow = mega ? '255,94,203' : '115,191,105';
+      const core = mega ? '255,225,246' : '235,255,242';
       g.save();
       g.lineCap = 'round';
-      g.shadowColor = 'rgba(115,191,105,0.9)';
-      g.shadowBlur = 10;
-      g.strokeStyle = 'rgba(210,255,224,' + (a * 0.28).toFixed(3) + ')';
-      g.lineWidth = 4;
+      g.shadowColor = 'rgba(' + glow + ',0.9)';
+      g.shadowBlur = mega ? 18 : 10;
+      g.strokeStyle = 'rgba(' + glow + ',' + (a * (mega ? 0.45 : 0.28)).toFixed(3) + ')';
+      g.lineWidth = mega ? 7 : 4;
       g.beginPath();
       g.moveTo(b.x1, b.y1);
       g.lineTo(b.x2, b.y2);
       g.stroke();
-      g.strokeStyle = 'rgba(235,255,242,' + (a * 0.95).toFixed(3) + ')';
-      g.lineWidth = 1.4;
+      g.strokeStyle = 'rgba(' + core + ',' + (a * 0.95).toFixed(3) + ')';
+      g.lineWidth = mega ? 2.4 : 1.4;
       g.beginPath();
       g.moveTo(b.x1, b.y1);
       g.lineTo(b.x2, b.y2);
@@ -1729,7 +1853,8 @@
     if (!panelAt(x, y)) return;
     const ok = canPlace(x, y);
     const isGen = state.buildKind === 'generator';
-    const col = ok ? (isGen ? '#56d9ff' : '#73bf69') : '#f2495c';
+    const isMega = state.buildKind === 'mega';
+    const col = ok ? (isGen ? '#56d9ff' : isMega ? MEGA.color : '#73bf69') : '#f2495c';
 
     g.save();
     g.lineWidth = 1;
@@ -1743,10 +1868,14 @@
       g.setLineDash([]);
     } else {
       g.beginPath();
-      g.arc(x, y, TOWER.range, 0, TAU);
-      g.fillStyle = ok ? 'rgba(115,191,105,0.04)' : 'rgba(242,73,92,0.04)';
+      g.arc(x, y, isMega ? MEGA.range : TOWER.range, 0, TAU);
+      g.fillStyle = ok
+        ? (isMega ? 'rgba(255,94,203,0.04)' : 'rgba(115,191,105,0.04)')
+        : 'rgba(242,73,92,0.04)';
       g.fill();
-      g.strokeStyle = ok ? 'rgba(115,191,105,0.22)' : 'rgba(242,73,92,0.22)';
+      g.strokeStyle = ok
+        ? (isMega ? 'rgba(255,94,203,0.28)' : 'rgba(115,191,105,0.22)')
+        : 'rgba(242,73,92,0.22)';
       g.setLineDash([4, 6]);
       g.stroke();
       g.setLineDash([]);
@@ -1770,15 +1899,15 @@
       g.fill();
     } else {
       g.beginPath();
-      g.arc(x, y, 11, 0, TAU);
+      g.arc(x, y, isMega ? 14 : 11, 0, TAU);
       g.stroke();
       g.beginPath();
       g.moveTo(x + 3, y);
-      g.lineTo(x + 14, y);
-      g.lineWidth = 2.5;
+      g.lineTo(x + (isMega ? 20 : 14), y);
+      g.lineWidth = isMega ? 4 : 2.5;
       g.stroke();
       g.beginPath();
-      g.arc(x, y, 2, 0, TAU);
+      g.arc(x, y, isMega ? 3.4 : 2, 0, TAU);
       g.fillStyle = col;
       g.fill();
     }
@@ -1863,7 +1992,7 @@
   }
 
   function selectBuild(kind) {
-    state.buildKind = kind === 'generator' ? 'generator' : 'turret';
+    state.buildKind = kind === 'generator' ? 'generator' : kind === 'mega' ? 'mega' : 'turret';
     const btns = document.querySelectorAll('.build-btn');
     for (let i = 0; i < btns.length; i++) {
       const on = btns[i].dataset.kind === state.buildKind;
@@ -1871,21 +2000,27 @@
       btns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
     }
     if (el.shotNote) {
-      el.shotNote.textContent = state.buildKind === 'generator'
-        ? '+' + POWER.generatorOutput.toFixed(1) + '/s output'
-        : '\u2212' + POWER.turretDraw.toFixed(1) + '/s each \u00b7 \u2212' + POWER.shotCost + '/shot';
+      if (state.buildKind === 'generator') {
+        el.shotNote.textContent = '+' + POWER.generatorOutput.toFixed(1) + '/s output';
+      } else {
+        const cost = state.buildKind === 'mega' ? MEGA.shotCost : POWER.shotCost;
+        el.shotNote.textContent = '\u2212' + POWER.turretDraw.toFixed(1) + '/s each \u00b7 \u2212' + cost + '/shot';
+      }
     }
+    updateBuildUI();
   }
 
   function updateBuildUI() {
     if (!el.buildStatusText || !el.buildProgress) return;
     if (state.site) {
       const left = Math.max(0, state.site.duration - state.site.progress);
-      el.buildStatusText.textContent = 'Building ' + (state.site.kind === 'generator' ? 'generator' : 'turret') + ' · ' + left.toFixed(1) + 's';
+      const label = state.site.kind === 'generator' ? 'generator' : state.site.kind === 'mega' ? 'mega laser' : 'turret';
+      el.buildStatusText.textContent = 'Building ' + label + ' · ' + left.toFixed(1) + 's';
       el.buildProgress.style.width = clamp(state.site.progress / state.site.duration * 100, 0, 100).toFixed(1) + '%';
       el.buildBar.classList.add('busy');
     } else {
-      el.buildStatusText.textContent = 'Fabricator ready · ' + POWER.buildTime.toFixed(0) + 's build';
+      const selectedTime = state.buildKind === 'mega' ? MEGA.buildTime : POWER.buildTime;
+      el.buildStatusText.textContent = 'Fabricator ready · ' + selectedTime.toFixed(0) + 's build';
       el.buildProgress.style.width = '0%';
       el.buildBar.classList.remove('busy');
     }
@@ -1925,7 +2060,7 @@
     const list = [];
     for (let i = 0; i < state.towers.length; i++) {
       const t = state.towers[i];
-      list.push({ kind: 'turret', id: t.id, x: t.x, y: t.y, builtAt: t.builtAt || 0 });
+      list.push({ kind: t.kind || 'turret', id: t.id, x: t.x, y: t.y, builtAt: t.builtAt || 0 });
     }
     for (let i = 0; i < state.generators.length; i++) {
       const g = state.generators[i];
@@ -1941,10 +2076,14 @@
     const shown = list.slice(0, 6);
     el.towerRows.innerHTML = shown.map(item => {
       const isGen = item.kind === 'generator';
+      const isMega = item.kind === 'mega';
+      const prefix = isGen ? 'GN-' : isMega ? 'MX-' : 'LZ-';
+      const tone = isMega ? ' mega' : isGen ? ' gen' : '';
+      const status = isGen ? 'supply' : 'online';
       return '<div class="mini-row">' +
-        '<span class="mono">' + (isGen ? 'GN-' : 'LZ-') + String(item.id).padStart(2, '0') + '</span>' +
+        '<span class="mono">' + prefix + String(item.id).padStart(2, '0') + '</span>' +
         '<span>' + sector(item.x, item.y) + '</span>' +
-        '<span class="status' + (isGen ? ' gen' : '') + '"><i class="dot' + (isGen ? ' gen' : '') + '"></i>' + (isGen ? 'supply' : 'online') + '</span>' +
+        '<span class="status' + tone + '"><i class="dot' + tone + '"></i>' + status + '</span>' +
       '</div>';
     }).join('');
 
@@ -2144,8 +2283,9 @@
     return buffer;
   }
 
-  function playLaser(x) {
+  function playLaser(x, mega) {
     if (!audioState.on) return;
+    const heavy = !!mega;
     const ac = audioState.ctx;
     if (!ac || ac.state !== 'running') return;
     const now = ac.currentTime;
@@ -2154,7 +2294,7 @@
 
     const nodes = [];
     const out = ac.createGain();
-    out.gain.value = 1;
+    out.gain.value = heavy ? 1.24 : 1;
     nodes.push(out);
 
     if (ac.createStereoPanner) {
@@ -2167,23 +2307,23 @@
       out.connect(audioState.master);
     }
 
-    /* bright zap */
+    /* zap sweep */
     const filter = ac.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.Q.value = 1.8;
-    filter.frequency.setValueAtTime(4400, now);
-    filter.frequency.exponentialRampToValueAtTime(900, now + 0.15);
+    filter.Q.value = heavy ? 2.4 : 1.8;
+    filter.frequency.setValueAtTime(heavy ? 2200 : 3600, now);
+    filter.frequency.exponentialRampToValueAtTime(heavy ? 280 : 700, now + (heavy ? 0.5 : 0.2));
     filter.connect(out);
     nodes.push(filter);
 
     const osc = ac.createOscillator();
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(1650 + rand(-220, 300), now);
-    osc.frequency.exponentialRampToValueAtTime(250 + rand(-30, 80), now + 0.14);
+    osc.frequency.setValueAtTime((heavy ? 700 : 1350) + rand(-200, 260), now);
+    osc.frequency.exponentialRampToValueAtTime((heavy ? 70 : 200) + rand(-20, 60), now + (heavy ? 0.55 : 0.18));
     const gain = ac.createGain();
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.13 + rand(0, 0.06), now + 0.004);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    gain.gain.exponentialRampToValueAtTime((heavy ? 0.22 : 0.16) + rand(0, 0.05), now + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.7 : 0.3));
     osc.connect(gain);
     gain.connect(filter);
     nodes.push(osc, gain);
@@ -2191,53 +2331,68 @@
     /* low body thump */
     const body = ac.createOscillator();
     body.type = 'sine';
-    body.frequency.setValueAtTime(190 + rand(-20, 30), now);
-    body.frequency.exponentialRampToValueAtTime(50, now + 0.13);
+    body.frequency.setValueAtTime((heavy ? 145 : 165) + rand(-20, 30), now);
+    body.frequency.exponentialRampToValueAtTime(heavy ? 32 : 45, now + (heavy ? 0.35 : 0.15));
     const bodyGain = ac.createGain();
     bodyGain.gain.setValueAtTime(0.0001, now);
-    bodyGain.gain.exponentialRampToValueAtTime(0.24, now + 0.006);
-    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+    bodyGain.gain.exponentialRampToValueAtTime(heavy ? 0.42 : 0.28, now + 0.006);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.6 : 0.22));
     body.connect(bodyGain);
     bodyGain.connect(out);
     nodes.push(body, bodyGain);
+
+    /* deep sub tail */
+    const sub = ac.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(heavy ? 72 : 110, now);
+    sub.frequency.exponentialRampToValueAtTime(heavy ? 26 : 48, now + (heavy ? 0.55 : 0.22));
+    const subGain = ac.createGain();
+    subGain.gain.setValueAtTime(0.0001, now);
+    subGain.gain.exponentialRampToValueAtTime(heavy ? 0.45 : 0.2, now + 0.008);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.8 : 0.3));
+    sub.connect(subGain);
+    subGain.connect(out);
+    nodes.push(sub, subGain);
 
     /* noise crack transient */
     const noise = ac.createBufferSource();
     noise.buffer = ensureNoise(ac);
     const noiseFilter = ac.createBiquadFilter();
     noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.setValueAtTime(2600 + rand(-500, 500), now);
+    noiseFilter.frequency.setValueAtTime((heavy ? 1200 : 2000) + rand(-400, 400), now);
     noiseFilter.Q.value = 0.8;
     const noiseGain = ac.createGain();
     noiseGain.gain.setValueAtTime(0.0001, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.26, now + 0.003);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+    noiseGain.gain.exponentialRampToValueAtTime(heavy ? 0.34 : 0.3, now + 0.003);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.11 : 0.07));
     noise.connect(noiseFilter);
     noiseFilter.connect(noiseGain);
     noiseGain.connect(out);
     nodes.push(noise, noiseFilter, noiseGain);
 
-    /* high sparkle */
+    /* sparkle */
     const ping = ac.createOscillator();
     ping.type = 'triangle';
-    ping.frequency.setValueAtTime(2600 + rand(-300, 300), now);
-    ping.frequency.exponentialRampToValueAtTime(900, now + 0.07);
+    ping.frequency.setValueAtTime((heavy ? 1250 : 2200) + rand(-300, 300), now);
+    ping.frequency.exponentialRampToValueAtTime(heavy ? 360 : 700, now + (heavy ? 0.18 : 0.09));
     const pingGain = ac.createGain();
     pingGain.gain.setValueAtTime(0.0001, now);
-    pingGain.gain.exponentialRampToValueAtTime(0.05, now + 0.003);
-    pingGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+    pingGain.gain.exponentialRampToValueAtTime(0.045, now + 0.003);
+    pingGain.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.2 : 0.09));
     ping.connect(pingGain);
     pingGain.connect(out);
     nodes.push(ping, pingGain);
 
     osc.start(now);
-    osc.stop(now + 0.23);
+    osc.stop(now + (heavy ? 0.95 : 0.34));
     body.start(now);
-    body.stop(now + 0.17);
+    body.stop(now + (heavy ? 0.75 : 0.25));
+    sub.start(now);
+    sub.stop(now + (heavy ? 0.9 : 0.32));
     noise.start(now);
-    noise.stop(now + 0.1);
+    noise.stop(now + (heavy ? 0.2 : 0.11));
     ping.start(now);
-    ping.stop(now + 0.1);
+    ping.stop(now + (heavy ? 0.2 : 0.1));
 
     let cleaned = false;
     const cleanup = function () {
@@ -2248,7 +2403,7 @@
       }
     };
     osc.onended = cleanup;
-    setTimeout(cleanup, 450);
+    setTimeout(cleanup, heavy ? 1400 : 600);
   }
 
   function toggleSound() {
@@ -2301,6 +2456,7 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '1') selectBuild('turret');
     else if (e.key === '2') selectBuild('generator');
+    else if (e.key === '3') selectBuild('mega');
   });
 
   document.getElementById('restartBtn').addEventListener('click', resetGame);
@@ -2359,7 +2515,7 @@
     syncUI();
     logEvent('info', 'Dashboard "Perimeter Defense" loaded');
     logEvent('ok', 'Perimeter sensors online');
-    logEvent('info', 'Fabricator online — each structure takes 3s');
+    logEvent('info', 'Fabricator online — turrets and generators 3s, mega lasers 9s');
     logEvent('warn', 'Hostiles inbound — turrets drain the capacitor');
     startWave();
     state.spawnTimer = 6;

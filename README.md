@@ -29,15 +29,18 @@ browser autoplay rules.
 - Click a panel to build there. Structures can only be placed inside panel
   bodies, not in the corridors. A colored ghost preview shows a valid placement;
   red means blocked or too close to another structure.
-- Use the fabricator bar in the bottom-left, or press `1` / `2`, to choose what
-  to build:
+- Use the fabricator bar in the bottom-left, or press `1` / `2` / `3`, to choose
+  what to build:
   - **Laser turret** — fires at nearby hostiles. Costs 1.5 capacitor charge per
     second while online, plus 3 charge per shot.
   - **Crystal generator** — glowing cyan crystal that supplies 9 charge per
     second.
-- Each structure takes **3 seconds** to construct, and the fabricator can build
-  only one structure at a time. A progress ring and countdown appear on the
-  map; the bar shows the remaining time.
+  - **Mega laser** — twice the range, four times the damage, half the firing
+    rate, and 12 charge per shot (4x a normal turret). Same 1.5/s idle draw,
+    but takes **9 seconds** to build.
+- Turrets and generators take **3 seconds** to construct; mega lasers take
+  **9 seconds**. The fabricator builds only one structure at a time. A progress
+  ring and countdown appear on the map, and the bar shows the remaining time.
 - The **Reactor capacitor** starts at 80/100. If it empties, turrets go offline
   until charge recovers. Watch the gauge and its base draw / net readouts, and
   add generators before adding more guns.
@@ -47,14 +50,33 @@ browser autoplay rules.
 
 ## Tips
 
-- One generator roughly sustains one continuously firing turret. Build supply
-  before a long fight, not during it.
-- Turrets only reach corridors near their panel edge — check the range circle
-  in the placement preview.
+- One generator roughly sustains one continuously firing normal turret. Build
+  supply before a long fight, not during it.
+- A mega laser burns about twice the charge per second of a normal turret —
+  back it with extra generation.
+- Normal turrets only reach nearby corridors; mega lasers can cover distant
+  lanes. Check the range circle in the placement preview.
 - Use the 6-second grace period at the start to get your first turret and
   generator online.
 - Turrets in the narrow stat panels near the top can cover both the corridor
   above and below the panel.
+
+## Difficulty ramp
+
+Waves 1-3 are intentionally unchanged: 7/9/11 enemies, gentle HP and speed
+growth, and the original raider/brute mix. From wave 4 onward (`late = wave -
+3`), the game ramps harder:
+
+- Wave size: 2x the normal late-wave count, i.e.
+  `min(100, round((5 + 2*wave + late) * 2))`
+- Enemy HP: `1 + 0.16*(wave-1) + 0.07*late`
+- Enemy speed: `1 + min(0.6, 0.025*(wave-1) + 0.012*late)`
+- Spawn interval: `max(0.30, 1.05 - 0.05*wave - 0.01*late)` seconds
+- Brutes grow from 38% to 44% of the wave, runners appear at wave 4 and grow
+  to 16%, raiders fall toward 20%, and scouts fill the remainder.
+
+All of these knobs live in the `DIFFICULTY` object near the gameplay constants
+in `index.html`.
 
 ## Under the hood
 
@@ -66,7 +88,8 @@ browser autoplay rules.
   resize, so they always navigate the current gutter layout.
 - Audio is synthesized with the Web Audio API: layered saw/body/noise layers,
   saturation, and compression. No audio files.
-- All gameplay constants (`TYPES`, `TOWER`, `GEN`, `POWER`, wave composition,
-  build time, spawn grace) are near the top of the script in `index.html`.
+- All gameplay constants (`TYPES`, `TOWER`, `MEGA`, `GEN`, `POWER`, wave
+  composition, build time, spawn grace) are near the top of the script in
+  `index.html`.
 
 See `AGENTS.md` for architecture notes and the validation workflow.
