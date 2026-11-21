@@ -92,7 +92,7 @@
     position:relative; z-index:2;
     height:calc(100vh - 52px);
     display:flex; flex-direction:column;
-    padding:14px 40px 32px; gap:14px;
+    padding:14px 40px 78px; gap:14px;
     pointer-events:none;
   }
   .dash-head{display:flex; align-items:center; gap:10px; padding:0 2px; flex:0 0 auto; pointer-events:auto}
@@ -176,8 +176,18 @@
   .chart-text{font-family:Inter, system-ui, sans-serif; font-size:9px; fill:#7c8288}
 
   /* gauge */
-  .gauge-body{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:0 10px 10px}
-  .gauge-body svg{width:100%; height:100%; max-height:240px; display:block}
+  .gauge-body{flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; padding:0 12px 10px}
+  .gauge-body svg{width:100%; flex:1 1 auto; min-height:0; max-height:240px; display:block}
+  .gauge-meta{
+    flex:0 0 auto; width:100%;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+    border-top:1px solid #23282d; padding-top:7px;
+  }
+  .gauge-meta > div{text-align:center; min-width:0}
+  .gauge-meta span{display:block; font-size:12px; color:var(--text); font-variant-numeric:tabular-nums}
+  .gauge-meta span.neg{color:var(--red)}
+  .gauge-meta span.pos{color:var(--green)}
+  .gauge-meta small{display:block; margin-top:1px; font-size:9px; text-transform:uppercase; letter-spacing:.6px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 
   /* logs */
   .log-body{
@@ -218,12 +228,74 @@
   .mini-row .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#9aa0a6}
   .mini-row .status{display:flex; align-items:center; gap:5px; color:var(--green); font-size:10px}
   .dot{width:5px; height:5px; border-radius:50%; background:var(--green); box-shadow:0 0 5px rgba(115,191,105,.8); display:inline-block; flex:0 0 auto}
+  .dot.gen{background:var(--cyan); box-shadow:0 0 5px rgba(86,217,255,.8)}
+  .status.gen{color:var(--cyan)}
   .mini-empty{color:var(--text-faint); font-size:10.5px; padding-top:10px; white-space:normal; line-height:1.5}
   #towerRows{overflow:hidden; display:flex; flex-direction:column}
 
+  /* fabricator build bar */
+  .buildbar{
+    position:fixed; z-index:7; left:20px; bottom:14px;
+    display:flex; align-items:center; gap:12px;
+    padding:8px 10px;
+    background:rgba(20,23,27,.95);
+    border:1px solid var(--border); border-radius:5px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);
+    backdrop-filter:blur(6px);
+    font-size:12px;
+  }
+  .build-title{
+    align-self:stretch; display:flex; align-items:center;
+    padding-right:12px; border-right:1px solid var(--border);
+    font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--text-faint);
+  }
+  .build-options{display:flex; gap:6px}
+  .build-btn{
+    display:flex; align-items:center; gap:7px;
+    height:32px; padding:0 9px;
+    border:1px solid var(--border); border-radius:4px;
+    background:#1a1e22; color:var(--text-dim);
+    font-family:inherit; font-size:11.5px; cursor:pointer;
+  }
+  .build-btn:hover{background:#22272c; color:var(--text)}
+  .build-btn[data-kind="turret"].is-selected{
+    border-color:rgba(115,191,105,.7);
+    background:rgba(115,191,105,.12);
+    color:#d8efd2;
+  }
+  .build-btn[data-kind="generator"].is-selected{
+    border-color:rgba(86,217,255,.7);
+    background:rgba(86,217,255,.12);
+    color:#cdf5ff;
+  }
+  .build-ico{display:flex; width:15px; height:15px; flex:0 0 auto}
+  .build-ico svg{width:15px; height:15px; display:block}
+  .build-btn kbd{
+    font-family:inherit; font-size:9px; line-height:14px;
+    color:var(--text-faint); border:1px solid var(--border); border-radius:3px; padding:0 4px;
+  }
+  .build-status{min-width:210px; display:flex; flex-direction:column; gap:5px}
+  .build-status-row{display:flex; justify-content:space-between; gap:12px; white-space:nowrap}
+  .build-status-row #buildStatusText{font-size:10.5px; color:var(--text-dim)}
+  .build-shot{font-size:9.5px; color:var(--text-faint)}
+  .build-progress{height:4px; border-radius:2px; background:#23272c; overflow:hidden}
+  .build-progress i{
+    display:block; height:100%; width:0; border-radius:2px;
+    background:linear-gradient(90deg,#5794f2,#56d9ff);
+    transition:width .12s linear;
+  }
+  .buildbar.busy .build-progress i{background:linear-gradient(90deg,#fade2a,#ff9830)}
+  .buildbar.busy #buildStatusText{color:var(--yellow)}
+  .buildbar.denied{animation:deny .35s ease}
+  @keyframes deny{
+    0%,100%{transform:translateX(0)}
+    25%{transform:translateX(-4px)}
+    75%{transform:translateX(4px)}
+  }
+
   /* hint */
   .hint{
-    position:fixed; z-index:6; left:50%; bottom:20px;
+    position:fixed; z-index:6; left:50%; bottom:88px;
     display:flex; align-items:center; gap:10px;
     padding:9px 15px;
     background:rgba(20,23,27,.94);
@@ -273,7 +345,7 @@
   .overlay-note{margin:12px 0 0 !important; font-size:10.5px !important; color:var(--text-faint) !important; text-align:center}
 
   @media (max-height: 780px){
-    .dash{padding:10px 32px 24px; gap:10px}
+    .dash{padding:10px 32px 70px; gap:10px}
     .dash-head h1{font-size:18px}
     .grid{grid-template-rows:92px minmax(120px,1.12fr) minmax(104px,.88fr); gap:30px 34px}
     .stat-value{font-size:26px}
@@ -282,9 +354,16 @@
   }
   @media (max-width: 1050px){
     .crumbs, .save-state, .tag{display:none}
-    .dash{padding:10px 20px 20px}
+    .dash{padding:10px 20px 70px}
     .grid{gap:30px 28px}
     .legend{display:none}
+  }
+  @media (max-width: 900px){
+    .buildbar{left:10px; right:10px; bottom:18px; justify-content:space-between}
+    .hint{bottom:86px}
+    .build-shot{display:none}
+    .build-title{display:none}
+    .build-status{min-width:0; flex:1 1 auto}
   }
 </style>
 </head>
@@ -430,7 +509,14 @@
           <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
         </div>
       </div>
-      <div class="gauge-body"><svg id="gaugeChart" viewBox="0 0 200 140"></svg></div>
+      <div class="gauge-body">
+        <svg id="gaugeChart" viewBox="0 0 200 140"></svg>
+        <div class="gauge-meta">
+          <div><span id="metaGen">0</span><small>generators</small></div>
+          <div><span id="metaDraw">0.0/s</span><small>base draw</small></div>
+          <div><span id="metaNet" class="pos">+0.0/s</span><small>base net</small></div>
+        </div>
+      </div>
     </section>
 
     <section class="panel span5">
@@ -458,7 +544,7 @@
 
     <section class="panel span4">
       <div class="panel-head">
-        <span class="panel-title">Tower network</span>
+        <span class="panel-title">Defense grid</span>
         <div class="panel-actions">
           <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.9v.7" stroke-linecap="round"/></svg>
           <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
@@ -472,11 +558,45 @@
   </div>
 </main>
 
+<div class="buildbar" id="buildBar">
+  <div class="build-title">Fabricator</div>
+  <div class="build-options">
+    <button class="build-btn is-selected" type="button" data-kind="turret" aria-pressed="true">
+      <span class="build-ico">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="4.2"/>
+          <path d="M9.8 6.2 13 3"/>
+          <path d="M3 13.4h10"/>
+        </svg>
+      </span>
+      <span>Turret</span>
+      <kbd>1</kbd>
+    </button>
+    <button class="build-btn" type="button" data-kind="generator" aria-pressed="false">
+      <span class="build-ico">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 1.5 12 6.5 8 14.5 4 6.5z"/>
+          <path d="M8 5.6v4.2"/>
+        </svg>
+      </span>
+      <span>Generator</span>
+      <kbd>2</kbd>
+    </button>
+  </div>
+  <div class="build-status">
+    <div class="build-status-row">
+      <span id="buildStatusText">Fabricator ready · 3s build</span>
+      <span class="build-shot" id="shotNote">−1.5/s each · −3/shot</span>
+    </div>
+    <div class="build-progress"><i id="buildProgress"></i></div>
+  </div>
+</div>
+
 <div class="hint" id="hint">
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><rect x="3.5" y="1.5" width="9" height="13" rx="4.5"/><path d="M8 4v3"/></svg>
-  <span><strong>Left-click a panel</strong> (near an edge) to deploy laser towers</span>
+  <span><strong>Click a panel</strong> to build · <strong>1</strong> turret / <strong>2</strong> generator</span>
   <span class="hint-sep"></span>
-  <span class="hint-danger">Stop hostiles at the red perimeter</span>
+  <span class="hint-danger">Turrets drain the capacitor — keep generators online</span>
 </div>
 
 <div class="overlay hidden" id="overlay">
@@ -492,7 +612,7 @@
       <div><span id="overKills">0</span><small>kills</small></div>
     </div>
     <button class="btn primary wide" id="restartBtn" type="button">Redeploy defenses</button>
-    <p class="overlay-note">Tip: place turrets near a panel edge so their range reaches the corridors.</p>
+    <p class="overlay-note">Tip: one generator roughly sustains one firing turret — balance supply before adding more guns.</p>
   </div>
 </div>
 
@@ -535,6 +655,13 @@
     ts: document.getElementById('tsChart'),
     gauge: document.getElementById('gaugeChart'),
     hint: document.getElementById('hint'),
+    genCount: document.getElementById('metaGen'),
+    drawRate: document.getElementById('metaDraw'),
+    netRate: document.getElementById('metaNet'),
+    buildBar: document.getElementById('buildBar'),
+    buildStatusText: document.getElementById('buildStatusText'),
+    buildProgress: document.getElementById('buildProgress'),
+    shotNote: document.getElementById('shotNote'),
   };
 
   let W = window.innerWidth;
@@ -548,6 +675,16 @@
   };
 
   const TOWER = { range: 118, fireRate: 0.55, damage: 18, radius: 11 };
+  const GEN = { radius: 14 };
+  const STRUCT_SPACING = 32;
+  const POWER = {
+    max: 100,
+    start: 80,
+    turretDraw: 1.5,
+    shotCost: 3,
+    generatorOutput: 9,
+    buildTime: 3,
+  };
 
   const state = {
     running: true,
@@ -563,8 +700,16 @@
     kills: 0,
     killsByType: { scout: 0, raider: 0, brute: 0, runner: 0 },
     nextTowerId: 1,
+    nextGeneratorId: 1,
     enemies: [],
     towers: [],
+    generators: [],
+    site: null,
+    buildKind: 'turret',
+    power: POWER.start,
+    lowPower: false,
+    depleted: false,
+    busyLogAt: -99,
     beams: [],
     particles: [],
     floats: [],
@@ -805,34 +950,106 @@
     if (!state.running) return false;
     const panel = panelAt(x, y);
     if (!panel) return false;
-    const m = TOWER.radius + 4;
+    const m = GEN.radius + 4;
     if (x < panel.x + m || x > panel.x + panel.w - m ||
         y < panel.y + m || y > panel.y + panel.h - m) return false;
+
+    const min2 = STRUCT_SPACING * STRUCT_SPACING;
     for (let i = 0; i < state.towers.length; i++) {
-      const t = state.towers[i];
-      const dx = t.x - x, dy = t.y - y;
-      if (dx * dx + dy * dy < 26 * 26) return false;
+      const s = state.towers[i];
+      const dx = s.x - x, dy = s.y - y;
+      if (dx * dx + dy * dy < min2) return false;
+    }
+    for (let i = 0; i < state.generators.length; i++) {
+      const s = state.generators[i];
+      const dx = s.x - x, dy = s.y - y;
+      if (dx * dx + dy * dy < min2) return false;
+    }
+    if (state.site) {
+      const dx = state.site.x - x, dy = state.site.y - y;
+      if (dx * dx + dy * dy < min2) return false;
     }
     return true;
   }
 
-  function placeTower(x, y) {
-    const t = {
-      id: state.nextTowerId++,
-      x: x,
-      y: y,
-      angle: -Math.PI / 2,
-      cd: rand(0, 0.15),
-      range: TOWER.range,
-      fireRate: TOWER.fireRate,
-      damage: TOWER.damage,
-    };
-    state.towers.push(t);
-    state.effects.push({ kind: 'ring', x: x, y: y, r: 8, max: 46, life: 0.45, maxLife: 0.45, color: '#73bf69' });
-    logEvent('ok', 'Turret LZ-' + String(t.id).padStart(2, '0') + ' deployed — sector ' + sector(x, y));
-    rebuildTowerTable();
-    syncUI();
+  function powerNet() {
+    return state.generators.length * POWER.generatorOutput - state.towers.length * POWER.turretDraw;
+  }
+
+  function flashBusy(x, y) {
+    if (el.buildBar) {
+      el.buildBar.classList.remove('denied');
+      void el.buildBar.offsetWidth;
+      el.buildBar.classList.add('denied');
+    }
+    state.effects.push({ kind: 'ring', x: x, y: y, r: 10, max: 24, life: 0.22, maxLife: 0.22, color: '#fade2a' });
+    if (state.elapsed - state.busyLogAt > 2.5) {
+      state.busyLogAt = state.elapsed;
+      logEvent('warn', 'Fabricator busy — one build at a time');
+    }
+  }
+
+  function startBuild(kind, x, y) {
+    if (!state.running) return;
+    if (state.site) {
+      flashBusy(x, y);
+      return;
+    }
+    if (!canPlace(x, y)) {
+      state.effects.push({ kind: 'ring', x: x, y: y, r: 10, max: 26, life: 0.25, maxLife: 0.25, color: '#f2495c' });
+      return;
+    }
+    const isGen = kind === 'generator';
+    state.site = { kind: kind, x: x, y: y, progress: 0, duration: POWER.buildTime };
+    state.effects.push({
+      kind: 'ring', x: x, y: y, r: 8, max: 36, life: 0.4, maxLife: 0.4,
+      color: isGen ? '#56d9ff' : '#73bf69',
+    });
+    logEvent('info', 'Fabricator building ' + (isGen ? 'generator' : 'turret') + ' — sector ' + sector(x, y));
     hideHint();
+    updateBuildUI();
+    syncUI();
+  }
+
+  function updateBuild(dt) {
+    if (!state.site) return;
+    const site = state.site;
+    site.progress += dt;
+    if (site.progress < site.duration) return;
+
+    state.site = null;
+    if (site.kind === 'generator') {
+      const g = {
+        kind: 'generator',
+        id: state.nextGeneratorId++,
+        x: site.x,
+        y: site.y,
+        builtAt: state.elapsed,
+        phase: rand(0, TAU),
+      };
+      state.generators.push(g);
+      state.effects.push({ kind: 'ring', x: g.x, y: g.y, r: 8, max: 48, life: 0.5, maxLife: 0.5, color: '#56d9ff' });
+      logEvent('ok', 'Generator GN-' + String(g.id).padStart(2, '0') + ' online — +' + POWER.generatorOutput.toFixed(1) + '/s');
+    } else {
+      const t = {
+        kind: 'turret',
+        id: state.nextTowerId++,
+        x: site.x,
+        y: site.y,
+        angle: -Math.PI / 2,
+        cd: rand(0, 0.15),
+        range: TOWER.range,
+        fireRate: TOWER.fireRate,
+        damage: TOWER.damage,
+        builtAt: state.elapsed,
+      };
+      state.towers.push(t);
+      state.effects.push({ kind: 'ring', x: t.x, y: t.y, r: 8, max: 48, life: 0.5, maxLife: 0.5, color: '#73bf69' });
+      logEvent('ok', 'Turret LZ-' + String(t.id).padStart(2, '0') + ' online — sector ' + sector(t.x, t.y));
+    }
+    rebuildStructureTable();
+    updateBuildUI();
+    syncUI();
   }
 
   function pickType(wave) {
@@ -908,6 +1125,26 @@
     if (state.intermission <= 0) {
       state.wave++;
       startWave();
+    }
+  }
+
+  function updatePower(dt) {
+    const draw = state.towers.length * POWER.turretDraw;
+    const gen = state.generators.length * POWER.generatorOutput;
+    state.power = clamp(state.power + (gen - draw) * dt, 0, POWER.max);
+
+    if (state.power <= 0.01 && !state.depleted) {
+      state.depleted = true;
+      logEvent('error', 'Capacitor depleted — turrets offline');
+    } else if (state.power > 6 && state.depleted) {
+      state.depleted = false;
+    }
+
+    if (state.power < 20 && !state.lowPower) {
+      state.lowPower = true;
+      if (!state.depleted) logEvent('warn', 'Capacitor low — add generation or turrets will stall');
+    } else if (state.power > 35 && state.lowPower) {
+      state.lowPower = false;
     }
   }
 
@@ -1036,6 +1273,8 @@
       t.angle = angleLerp(t.angle, ang, 1 - Math.exp(-14 * dt));
 
       if (t.cd <= 0) {
+        if (state.power < POWER.shotCost) continue;
+        state.power = Math.max(0, state.power - POWER.shotCost);
         t.cd = t.fireRate;
         target.hp -= t.damage;
         target.flash = 0.12;
@@ -1097,8 +1336,15 @@
     state.kills = 0;
     state.killsByType = { scout: 0, raider: 0, brute: 0, runner: 0 };
     state.nextTowerId = 1;
+    state.nextGeneratorId = 1;
+    state.power = POWER.start;
+    state.lowPower = false;
+    state.depleted = false;
+    state.busyLogAt = -99;
+    state.site = null;
     state.enemies.length = 0;
     state.towers.length = 0;
+    state.generators.length = 0;
     state.beams.length = 0;
     state.particles.length = 0;
     state.floats.length = 0;
@@ -1106,9 +1352,10 @@
 
     el.overlay.classList.add('hidden');
     buildField();
-    rebuildTowerTable();
+    rebuildStructureTable();
+    selectBuild('turret');
     startWave();
-    state.spawnTimer = 4.5;
+    state.spawnTimer = 6;
     syncUI();
     logEvent('info', 'Perimeter defense reinitialized — good luck, operator');
     showHint();
@@ -1201,6 +1448,7 @@
   }
 
   function drawTowers(g, t) {
+    const powered = state.power >= POWER.shotCost;
     for (let i = 0; i < state.towers.length; i++) {
       const tw = state.towers[i];
       const hx = mouse.x - tw.x;
@@ -1253,9 +1501,119 @@
 
       g.beginPath();
       g.arc(tw.x, tw.y, 2.6, 0, TAU);
-      g.fillStyle = '#d6ffe2';
+      g.fillStyle = powered ? '#d6ffe2' : '#f2495c';
       g.fill();
     }
+  }
+
+  function drawGenerators(g, t) {
+    for (let i = 0; i < state.generators.length; i++) {
+      const c = state.generators[i];
+      const pulse = 0.5 + 0.5 * Math.sin(t * 2.1 + c.phase);
+      const rad = 24 + pulse * 7;
+
+      const aura = g.createRadialGradient(c.x, c.y, 2, c.x, c.y, rad + 8);
+      aura.addColorStop(0, 'rgba(86,217,255,0.22)');
+      aura.addColorStop(1, 'rgba(86,217,255,0)');
+      g.fillStyle = aura;
+      g.beginPath();
+      g.arc(c.x, c.y, rad + 8, 0, TAU);
+      g.fill();
+
+      g.beginPath();
+      g.arc(c.x, c.y, 12.5, 0, TAU);
+      g.strokeStyle = 'rgba(86,217,255,0.4)';
+      g.lineWidth = 1;
+      g.stroke();
+
+      g.save();
+      g.translate(c.x, c.y);
+      g.rotate(Math.sin(t * 0.9 + c.phase) * 0.18);
+      g.shadowColor = '#56d9ff';
+      g.shadowBlur = 12;
+      g.beginPath();
+      g.moveTo(0, -13);
+      g.lineTo(6.5, -2);
+      g.lineTo(0, 13);
+      g.lineTo(-6.5, -2);
+      g.closePath();
+      g.fillStyle = 'rgba(86,217,255,0.2)';
+      g.fill();
+      g.strokeStyle = '#9ff0ff';
+      g.lineWidth = 1.4;
+      g.stroke();
+      g.shadowBlur = 0;
+      g.beginPath();
+      g.moveTo(0, -6.5);
+      g.lineTo(2.8, -1);
+      g.lineTo(0, 6.5);
+      g.lineTo(-2.8, -1);
+      g.closePath();
+      g.fillStyle = 'rgba(220,250,255,0.75)';
+      g.fill();
+      g.restore();
+    }
+  }
+
+  function drawSite(g, t) {
+    const site = state.site;
+    if (!site) return;
+    const f = clamp(site.progress / site.duration, 0, 1);
+    const col = site.kind === 'generator' ? '#56d9ff' : '#73bf69';
+    const remain = Math.max(0, site.duration - site.progress);
+
+    g.save();
+    g.translate(site.x, site.y);
+
+    g.setLineDash([4, 4]);
+    g.strokeStyle = 'rgba(250,222,42,0.55)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.arc(0, 0, 17, 0, TAU);
+    g.stroke();
+    g.setLineDash([]);
+
+    g.strokeStyle = '#fade2a';
+    g.lineWidth = 2.4;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.arc(0, 0, 17, -Math.PI / 2, -Math.PI / 2 + TAU * f);
+    g.stroke();
+
+    g.globalAlpha = 0.2 + f * 0.55;
+    if (site.kind === 'generator') {
+      g.beginPath();
+      g.moveTo(0, -11);
+      g.lineTo(5.5, -1);
+      g.lineTo(0, 11);
+      g.lineTo(-5.5, -1);
+      g.closePath();
+      g.fillStyle = withAlpha(col, 0.25);
+      g.fill();
+      g.strokeStyle = col;
+      g.lineWidth = 1.3;
+      g.stroke();
+    } else {
+      g.beginPath();
+      g.arc(0, 0, 10, 0, TAU);
+      g.fillStyle = 'rgba(16,20,24,0.9)';
+      g.fill();
+      g.strokeStyle = col;
+      g.lineWidth = 1.3;
+      g.stroke();
+      g.beginPath();
+      g.moveTo(3, 0);
+      g.lineTo(12, 0);
+      g.lineWidth = 2.5;
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+
+    g.fillStyle = 'rgba(250,222,42,0.9)';
+    g.font = '600 9px Inter, system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.fillText(remain.toFixed(1) + 's', 0, 31);
+    g.restore();
   }
 
   function drawEnemies(t) {
@@ -1366,32 +1724,64 @@
   }
 
   function drawGhost(g) {
-    if (!state.running || !mouse.on) return;
+    if (!state.running || !mouse.on || state.site) return;
     const x = mouse.x, y = mouse.y;
     if (!panelAt(x, y)) return;
     const ok = canPlace(x, y);
+    const isGen = state.buildKind === 'generator';
+    const col = ok ? (isGen ? '#56d9ff' : '#73bf69') : '#f2495c';
 
     g.save();
-    g.beginPath();
-    g.arc(x, y, TOWER.range, 0, TAU);
-    g.fillStyle = ok ? 'rgba(115,191,105,0.04)' : 'rgba(242,73,92,0.04)';
-    g.fill();
-    g.strokeStyle = ok ? 'rgba(115,191,105,0.22)' : 'rgba(242,73,92,0.22)';
     g.lineWidth = 1;
-    g.setLineDash([4, 6]);
-    g.stroke();
-    g.setLineDash([]);
+
+    if (isGen) {
+      g.beginPath();
+      g.arc(x, y, 22, 0, TAU);
+      g.strokeStyle = ok ? 'rgba(86,217,255,0.3)' : 'rgba(242,73,92,0.3)';
+      g.setLineDash([4, 6]);
+      g.stroke();
+      g.setLineDash([]);
+    } else {
+      g.beginPath();
+      g.arc(x, y, TOWER.range, 0, TAU);
+      g.fillStyle = ok ? 'rgba(115,191,105,0.04)' : 'rgba(242,73,92,0.04)';
+      g.fill();
+      g.strokeStyle = ok ? 'rgba(115,191,105,0.22)' : 'rgba(242,73,92,0.22)';
+      g.setLineDash([4, 6]);
+      g.stroke();
+      g.setLineDash([]);
+    }
 
     g.globalAlpha = ok ? 0.9 : 0.7;
-    g.beginPath();
-    g.arc(x, y, 11, 0, TAU);
-    g.strokeStyle = ok ? '#73bf69' : '#f2495c';
+    g.strokeStyle = col;
     g.lineWidth = 1.5;
-    g.stroke();
-    g.beginPath();
-    g.arc(x, y, 2, 0, TAU);
-    g.fillStyle = ok ? '#73bf69' : '#f2495c';
-    g.fill();
+
+    if (isGen) {
+      g.beginPath();
+      g.moveTo(x, y - 13);
+      g.lineTo(x + 6.5, y - 2);
+      g.lineTo(x, y + 13);
+      g.lineTo(x - 6.5, y - 2);
+      g.closePath();
+      g.stroke();
+      g.beginPath();
+      g.arc(x, y, 2, 0, TAU);
+      g.fillStyle = col;
+      g.fill();
+    } else {
+      g.beginPath();
+      g.arc(x, y, 11, 0, TAU);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(x + 3, y);
+      g.lineTo(x + 14, y);
+      g.lineWidth = 2.5;
+      g.stroke();
+      g.beginPath();
+      g.arc(x, y, 2, 0, TAU);
+      g.fillStyle = col;
+      g.fill();
+    }
     g.restore();
   }
 
@@ -1406,8 +1796,10 @@
     drawFloats();
 
     drawEffects(fctx);
+    drawGenerators(fctx, t);
     drawTowers(fctx, t);
     drawBeams(fctx);
+    drawSite(fctx, t);
     drawGhost(fctx);
   }
 
@@ -1453,10 +1845,50 @@
     el.waveSub.textContent = waveSub;
 
     el.towers.textContent = state.towers.length;
-    const dps = state.towers.length * (TOWER.damage / TOWER.fireRate);
-    el.towersSub.textContent = fmt(dps) + ' dps · left-click to deploy';
+    const net = powerNet();
+    const netStr = (net >= 0 ? '+' : '') + net.toFixed(1) + '/s';
+    el.towersSub.textContent = state.generators.length + ' gen · ' + netStr + ' net';
 
+    if (el.genCount) {
+      el.genCount.textContent = state.generators.length;
+      el.drawRate.textContent = (state.towers.length * POWER.turretDraw).toFixed(1) + '/s';
+      el.netRate.textContent = netStr;
+      el.netRate.classList.toggle('neg', net < -0.05);
+      el.netRate.classList.toggle('pos', net >= -0.05);
+    }
+
+    drawGauge();
+    updateBuildUI();
     updateKillBars();
+  }
+
+  function selectBuild(kind) {
+    state.buildKind = kind === 'generator' ? 'generator' : 'turret';
+    const btns = document.querySelectorAll('.build-btn');
+    for (let i = 0; i < btns.length; i++) {
+      const on = btns[i].dataset.kind === state.buildKind;
+      btns[i].classList.toggle('is-selected', on);
+      btns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    if (el.shotNote) {
+      el.shotNote.textContent = state.buildKind === 'generator'
+        ? '+' + POWER.generatorOutput.toFixed(1) + '/s output'
+        : '\u2212' + POWER.turretDraw.toFixed(1) + '/s each \u00b7 \u2212' + POWER.shotCost + '/shot';
+    }
+  }
+
+  function updateBuildUI() {
+    if (!el.buildStatusText || !el.buildProgress) return;
+    if (state.site) {
+      const left = Math.max(0, state.site.duration - state.site.progress);
+      el.buildStatusText.textContent = 'Building ' + (state.site.kind === 'generator' ? 'generator' : 'turret') + ' · ' + left.toFixed(1) + 's';
+      el.buildProgress.style.width = clamp(state.site.progress / state.site.duration * 100, 0, 100).toFixed(1) + '%';
+      el.buildBar.classList.add('busy');
+    } else {
+      el.buildStatusText.textContent = 'Fabricator ready · ' + POWER.buildTime.toFixed(0) + 's build';
+      el.buildProgress.style.width = '0%';
+      el.buildBar.classList.remove('busy');
+    }
   }
 
   function buildKillRows() {
@@ -1488,24 +1920,38 @@
     }
   }
 
-  function rebuildTowerTable() {
+  function rebuildStructureTable() {
     if (!el.towerRows) return;
-    const list = state.towers.slice(-6).reverse();
+    const list = [];
+    for (let i = 0; i < state.towers.length; i++) {
+      const t = state.towers[i];
+      list.push({ kind: 'turret', id: t.id, x: t.x, y: t.y, builtAt: t.builtAt || 0 });
+    }
+    for (let i = 0; i < state.generators.length; i++) {
+      const g = state.generators[i];
+      list.push({ kind: 'generator', id: g.id, x: g.x, y: g.y, builtAt: g.builtAt || 0 });
+    }
+    list.sort((a, b) => b.builtAt - a.builtAt);
+
     if (!list.length) {
-      el.towerRows.innerHTML = '<div class="mini-empty">No turrets deployed — click a panel to deploy</div>';
+      el.towerRows.innerHTML = '<div class="mini-empty">No structures online — build from the fabricator</div>';
       return;
     }
-    el.towerRows.innerHTML = list.map(t =>
-      '<div class="mini-row">' +
-        '<span class="mono">LZ-' + String(t.id).padStart(2, '0') + '</span>' +
-        '<span>' + sector(t.x, t.y) + '</span>' +
-        '<span class="status"><i class="dot"></i>online</span>' +
-      '</div>'
-    ).join('');
-    if (state.towers.length > 6) {
+
+    const shown = list.slice(0, 6);
+    el.towerRows.innerHTML = shown.map(item => {
+      const isGen = item.kind === 'generator';
+      return '<div class="mini-row">' +
+        '<span class="mono">' + (isGen ? 'GN-' : 'LZ-') + String(item.id).padStart(2, '0') + '</span>' +
+        '<span>' + sector(item.x, item.y) + '</span>' +
+        '<span class="status' + (isGen ? ' gen' : '') + '"><i class="dot' + (isGen ? ' gen' : '') + '"></i>' + (isGen ? 'supply' : 'online') + '</span>' +
+      '</div>';
+    }).join('');
+
+    if (list.length > shown.length) {
       el.towerRows.innerHTML +=
         '<div class="mini-row">' +
-          '<span class="mono">+' + (state.towers.length - 6) + '</span>' +
+          '<span class="mono">+' + (list.length - shown.length) + '</span>' +
           '<span>more units</span>' +
           '<span class="status"><i class="dot"></i>online</span>' +
         '</div>';
@@ -1580,8 +2026,6 @@
     drawChart();
   }
 
-  const gaugeState = { value: 78 };
-
   function polar(cx, cy, r, deg) {
     const rad = (deg * Math.PI) / 180;
     return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
@@ -1599,8 +2043,9 @@
   function drawGauge() {
     const svg = el.gauge;
     if (!svg) return;
-    const val = gaugeState.value;
-    const f = clamp(val / 100, 0, 1);
+    const val = clamp(state.power, 0, POWER.max);
+    const f = val / POWER.max;
+    const low = val < 20;
     const track = arcPath(100, 94, 70, 210, -30);
     const fill = f > 0.004 ? arcPath(100, 94, 70, 210, 210 - 240 * f) : '';
 
@@ -1612,8 +2057,8 @@
       '</linearGradient></defs>' +
       '<path d="' + track + '" fill="none" stroke="#23282d" stroke-width="12" stroke-linecap="round"/>' +
       (fill ? '<path d="' + fill + '" fill="none" stroke="url(#gaugeGrad)" stroke-width="12" stroke-linecap="round"/>' : '') +
-      '<text x="100" y="88" text-anchor="middle" fill="#ccccdc" font-size="30" font-weight="600" font-family="Inter, system-ui, sans-serif">' +
-        Math.round(val) + '<tspan font-size="13" fill="#8f959b">%</tspan></text>' +
+      '<text x="100" y="88" text-anchor="middle" fill="' + (low ? '#f2495c' : '#ccccdc') + '" font-size="30" font-weight="600" font-family="Inter, system-ui, sans-serif">' +
+        Math.round(f * 100) + '<tspan font-size="13" fill="#8f959b">%</tspan></text>' +
       '<text x="100" y="110" text-anchor="middle" fill="#6f757b" font-size="7.5" letter-spacing="1.4" font-family="Inter, system-ui, sans-serif">CAPACITOR</text>';
   }
 
@@ -1835,7 +2280,7 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
     mouse.on = e.target === fxCanvas;
-    fxCanvas.style.cursor = panelAt(mouse.x, mouse.y) ? 'crosshair' : 'default';
+    fxCanvas.style.cursor = (panelAt(mouse.x, mouse.y) && !state.site) ? 'crosshair' : 'default';
   });
   window.addEventListener('mouseout', e => { if (!e.relatedTarget) mouse.on = false; });
 
@@ -1843,11 +2288,19 @@
     if (!state.running) return;
     const x = e.clientX, y = e.clientY;
     if (!panelAt(x, y)) return;
-    if (!canPlace(x, y)) {
-      state.effects.push({ kind: 'ring', x: x, y: y, r: 10, max: 26, life: 0.25, maxLife: 0.25, color: '#f2495c' });
-      return;
-    }
-    placeTower(x, y);
+    startBuild(state.buildKind, x, y);
+  });
+
+  const buildButtons = document.querySelectorAll('.build-btn');
+  for (let i = 0; i < buildButtons.length; i++) {
+    buildButtons[i].addEventListener('click', function () {
+      selectBuild(this.dataset.kind);
+    });
+  }
+  window.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '1') selectBuild('turret');
+    else if (e.key === '2') selectBuild('generator');
   });
 
   document.getElementById('restartBtn').addEventListener('click', resetGame);
@@ -1871,6 +2324,8 @@
 
     if (state.running) {
       updateWaves(dt);
+      updateBuild(dt);
+      updatePower(dt);
       updateEnemies(dt);
       updateTowers(dt);
       state.enemies = state.enemies.filter(e => !e.dead);
@@ -1898,15 +2353,16 @@
   function boot() {
     resize();
     buildKillRows();
-    rebuildTowerTable();
-    drawGauge();
+    rebuildStructureTable();
+    selectBuild('turret');
     updateChart();
     syncUI();
     logEvent('info', 'Dashboard "Perimeter Defense" loaded');
     logEvent('ok', 'Perimeter sensors online');
-    logEvent('warn', 'Hostile signatures on the left edge');
+    logEvent('info', 'Fabricator online — each structure takes 3s');
+    logEvent('warn', 'Hostiles inbound — turrets drain the capacitor');
     startWave();
-    state.spawnTimer = 4.5;
+    state.spawnTimer = 6;
     syncUI();
     showHint();
     requestAnimationFrame(frame);
@@ -1921,11 +2377,6 @@
       logEvent(pick(['info', 'info', 'ok']), pick(FAKE_LOGS));
     }
   }, 4200);
-
-  setInterval(() => {
-    gaugeState.value = clamp(gaugeState.value + rand(-7, 7), 46, 97);
-    drawGauge();
-  }, 1800);
 
   setInterval(() => {
     updateChart();
